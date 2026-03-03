@@ -3,6 +3,7 @@ import Foundation
 @Observable
 class StatusMonitor {
     var providers: [ServiceProvider]
+    let notificationManager = NotificationManager()
     private var pollingTask: Task<Void, Never>?
 
     /// Worst status across all providers (highest severity wins).
@@ -59,6 +60,15 @@ class StatusMonitor {
                 providers[index].currentStatus = status
                 providers[index].incidents = incidents
                 providers[index].lastChecked = Date()
+
+                // Notify for new/changed incidents
+                for incident in incidents where incident.isActive {
+                    await notificationManager.sendIncidentNotification(
+                        providerName: providers[index].name,
+                        providerID: providers[index].id,
+                        incident: incident
+                    )
+                }
             }
         }
     }

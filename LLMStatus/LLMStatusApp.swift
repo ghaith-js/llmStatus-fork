@@ -14,6 +14,7 @@ struct LLMStatusApp: App {
         .defaultSize(width: 320, height: 400)
         .onChange(of: monitor.aggregatedStatus) { _, _ in }
         .task {
+            await monitor.notificationManager.requestPermission()
             monitor.startPolling()
         }
     }
