@@ -4,6 +4,7 @@ import Foundation
 class StatusMonitor {
     var providers: [ServiceProvider]
     let notificationManager = NotificationManager()
+    var notificationsEnabled = true
     private var pollingTask: Task<Void, Never>?
 
     /// Worst status across all providers (highest severity wins).
@@ -61,7 +62,8 @@ class StatusMonitor {
                 providers[index].incidents = incidents
                 providers[index].lastChecked = Date()
 
-                // Notify for new/changed incidents
+                // Notify for new/changed incidents (if enabled)
+                guard notificationsEnabled else { continue }
                 for incident in incidents where incident.isActive {
                     await notificationManager.sendIncidentNotification(
                         providerName: providers[index].name,

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct StatusPopoverView: View {
     let monitor: StatusMonitor
+    let settings: AppSettings
+    @State private var showingSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -55,6 +57,14 @@ struct StatusPopoverView: View {
                 Spacer()
 
                 Button {
+                    showingSettings.toggle()
+                } label: {
+                    Label("Settings", systemImage: "gear")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+
+                Button {
                     NSApplication.shared.terminate(nil)
                 } label: {
                     Text("Quit")
@@ -66,6 +76,9 @@ struct StatusPopoverView: View {
             .padding(.vertical, 8)
         }
         .frame(width: 320)
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(settings: settings)
+        }
     }
 
     private var lastRefreshText: String {

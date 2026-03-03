@@ -30,6 +30,16 @@ struct ServiceRowView: View {
                 }
 
                 Spacer()
+
+                Button {
+                    NSWorkspace.shared.open(provider.statusURL)
+                } label: {
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Open status page")
             }
 
             // Active incidents
