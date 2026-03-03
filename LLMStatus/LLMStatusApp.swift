@@ -6,8 +6,7 @@ struct LLMStatusApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            Text("LLM Status")
-                .padding()
+            StatusPopoverView(monitor: monitor)
         } label: {
             Image(systemName: monitor.aggregatedStatus.sfSymbol)
         }
