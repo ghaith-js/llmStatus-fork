@@ -19,10 +19,10 @@
 
 **Purpose**: Create Xcode project and basic SwiftUI menu bar app shell
 
-- [ ] T001 Create Xcode project `LLMStatus` with SwiftUI lifecycle, target macOS 14+
-- [ ] T002 Configure Info.plist with `LSUIElement = true` (no dock icon)
-- [ ] T003 Create folder structure: `LLMStatus/Models/`, `LLMStatus/Services/`, `LLMStatus/Views/`
-- [ ] T004 Create minimal `LLMStatusApp.swift` with empty MenuBarExtra (.window style) and static SF Symbol icon
+- [X] T001 Create Xcode project `LLMStatus` with SwiftUI lifecycle, target macOS 14+
+- [X] T002 Configure Info.plist with `LSUIElement = true` (no dock icon)
+- [X] T003 Create folder structure: `LLMStatus/Models/`, `LLMStatus/Services/`, `LLMStatus/Views/`
+- [X] T004 Create minimal `LLMStatusApp.swift` with empty MenuBarExtra (.window style) and static SF Symbol icon
 
 ---
 
@@ -32,12 +32,12 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 [P] Create `LLMStatus/Models/ServiceProvider.swift` — ServiceProvider struct with id, name, statusURL, apiBaseURL, currentStatus, lastChecked, incidents fields
-- [ ] T006 [P] Create `LLMStatus/Models/ServiceStatus.swift` — ServiceStatus enum (operational/degraded/majorOutage/critical/unknown) with color, sfSymbol, and init(fromIndicator:) mapping
-- [ ] T007 [P] Create `LLMStatus/Models/Incident.swift` — Incident struct with id, name, impact, status, createdAt, resolvedAt, updates, affectedComponents + IncidentImpact, IncidentStatus, IncidentUpdate types
-- [ ] T008 [P] Create `LLMStatus/Models/APIResponses.swift` — StatusResponse and IncidentsResponse DTOs with CodingKeys for snake_case JSON mapping
-- [ ] T009 Create `LLMStatus/Services/StatusFetcher.swift` — async functions fetchStatus(baseURL:) → StatusResponse and fetchIncidents(baseURL:) → [Incident] using URLSession + JSONDecoder with snake_case strategy
-- [ ] T010 Create `LLMStatusTests/StatusFetcherTests.swift` — Unit tests with mock JSON responses: test parseStatusResponse (all 4 indicators), test parseIncidentsResponse (active + resolved), test malformed JSON returns nil
+- [X] T005 [P] Create `LLMStatus/Models/ServiceProvider.swift` — ServiceProvider struct with id, name, statusURL, apiBaseURL, currentStatus, lastChecked, incidents fields
+- [X] T006 [P] Create `LLMStatus/Models/ServiceStatus.swift` — ServiceStatus enum (operational/degraded/majorOutage/critical/unknown) with color, sfSymbol, and init(fromIndicator:) mapping
+- [X] T007 [P] Create `LLMStatus/Models/Incident.swift` — Incident struct with id, name, impact, status, createdAt, resolvedAt, updates, affectedComponents + IncidentImpact, IncidentStatus, IncidentUpdate types
+- [X] T008 [P] Create `LLMStatus/Models/APIResponses.swift` — StatusResponse and IncidentsResponse DTOs with CodingKeys for snake_case JSON mapping
+- [X] T009 Create `LLMStatus/Services/StatusFetcher.swift` — async functions fetchStatus(baseURL:) → StatusResponse and fetchIncidents(baseURL:) → [Incident] using URLSession + JSONDecoder with snake_case strategy
+- [X] T010 Create `LLMStatusTests/StatusFetcherTests.swift` — Unit tests with mock JSON responses: test parseStatusResponse (all 4 indicators), test parseIncidentsResponse (active + resolved), test malformed JSON returns nil
 
 **Checkpoint**: Foundation ready — models decode Statuspage API, fetcher can retrieve and parse data
 
@@ -51,14 +51,14 @@
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Create `LLMStatusTests/StatusMonitorTests.swift` — Test aggregation logic: all operational → green, one degraded → yellow, one major → red, fetch failure → gray. Test polling starts/stops correctly.
-- [ ] T012 [P] [US1] Create `LLMStatusTests/ServiceStatusTests.swift` — Test init(fromIndicator:) mapping for all values, test color and sfSymbol properties
+- [X] T011 [P] [US1] Create `LLMStatusTests/StatusMonitorTests.swift` — Test aggregation logic: all operational → green, one degraded → yellow, one major → red, fetch failure → gray. Test polling starts/stops correctly.
+- [X] T012 [P] [US1] Create `LLMStatusTests/ServiceStatusTests.swift` — Test init(fromIndicator:) mapping for all values, test color and sfSymbol properties
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Create `LLMStatus/Services/StatusMonitor.swift` — @Observable class with providers array, aggregatedStatus computed property (worst status wins), startPolling(interval:) using Task.sleep loop, stopPolling(), fetchAllStatuses() calling StatusFetcher for each provider
-- [ ] T014 [US1] Define default providers in StatusMonitor.init(): Anthropic (https://status.claude.com/api/v2) and OpenAI (https://status.openai.com/api/v2)
-- [ ] T015 [US1] Update `LLMStatusApp.swift` — Wire StatusMonitor as @State, pass to MenuBarExtra label (dynamic SF Symbol from aggregatedStatus.sfSymbol), start polling on appear
+- [X] T013 [US1] Create `LLMStatus/Services/StatusMonitor.swift` — @Observable class with providers array, aggregatedStatus computed property (worst status wins), startPolling(interval:) using Task.sleep loop, stopPolling(), fetchAllStatuses() calling StatusFetcher for each provider
+- [X] T014 [US1] Define default providers in StatusMonitor.init(): Anthropic (https://status.claude.com/api/v2) and OpenAI (https://status.openai.com/api/v2)
+- [X] T015 [US1] Update `LLMStatusApp.swift` — Wire StatusMonitor as @State, pass to MenuBarExtra label (dynamic SF Symbol from aggregatedStatus.sfSymbol), start polling on appear
 
 **Checkpoint**: App shows colored icon in menu bar reflecting real Anthropic/OpenAI status. Clicking does nothing yet.
 
@@ -72,10 +72,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T016 [P] [US2] Create `LLMStatus/Views/ServiceRowView.swift` — SwiftUI view: status colored circle (SF Symbol), provider name, status text, last checked time. If incident active: incident name + link to status page
-- [ ] T017 [P] [US2] Create `LLMStatus/Views/IncidentDetailView.swift` — SwiftUI view: incident title, impact badge (minor/major/critical), status badge, timeline of updates, link to full incident page
-- [ ] T018 [US2] Create `LLMStatus/Views/StatusPopoverView.swift` — Main popover: header with "LLM Status" title + last refresh timestamp, List of ServiceRowView for each provider, divider, footer with "Refresh Now" button + "Settings" link + "Quit" button
-- [ ] T019 [US2] Wire StatusPopoverView into `LLMStatusApp.swift` MenuBarExtra content, pass StatusMonitor environment, set frame(width: 320)
+- [X] T016 [P] [US2] Create `LLMStatus/Views/ServiceRowView.swift` — SwiftUI view: status colored circle (SF Symbol), provider name, status text, last checked time. If incident active: incident name + link to status page
+- [X] T017 [P] [US2] Create `LLMStatus/Views/IncidentDetailView.swift` — SwiftUI view: incident title, impact badge (minor/major/critical), status badge, timeline of updates, link to full incident page
+- [X] T018 [US2] Create `LLMStatus/Views/StatusPopoverView.swift` — Main popover: header with "LLM Status" title + last refresh timestamp, List of ServiceRowView for each provider, divider, footer with "Refresh Now" button + "Settings" link + "Quit" button
+- [X] T019 [US2] Wire StatusPopoverView into `LLMStatusApp.swift` MenuBarExtra content, pass StatusMonitor environment, set frame(width: 320)
 
 **Checkpoint**: Clicking menu bar icon shows popover with real service statuses and incident details.
 
@@ -89,13 +89,13 @@
 
 ### Tests for User Story 3
 
-- [ ] T020 [P] [US3] Create `LLMStatusTests/NotificationManagerTests.swift` — Test shouldNotify logic: new incident → true, same incident already notified → false, incident resolved then new incident → true. Test notification content format.
+- [X] T020 [P] [US3] Create `LLMStatusTests/NotificationManagerTests.swift` — Test shouldNotify logic: new incident → true, same incident already notified → false, incident resolved then new incident → true. Test notification content format.
 
 ### Implementation for User Story 3
 
-- [ ] T021 [US3] Create `LLMStatus/Services/NotificationManager.swift` — requestPermission() async, sendIncidentNotification(provider:incident:) with deterministic identifier (providerID-incidentID) for deduplication, track notified incidents in Set<String>
-- [ ] T022 [US3] Integrate NotificationManager into StatusMonitor — after each fetchAllStatuses(), compare new incidents vs previous state, call sendIncidentNotification for new/changed incidents only
-- [ ] T023 [US3] Request notification permission on first app launch in `LLMStatusApp.swift` .onAppear
+- [X] T021 [US3] Create `LLMStatus/Services/NotificationManager.swift` — requestPermission() async, sendIncidentNotification(provider:incident:) with deterministic identifier (providerID-incidentID) for deduplication, track notified incidents in Set<String>
+- [X] T022 [US3] Integrate NotificationManager into StatusMonitor — after each fetchAllStatuses(), compare new incidents vs previous state, call sendIncidentNotification for new/changed incidents only
+- [X] T023 [US3] Request notification permission on first app launch in `LLMStatusApp.swift` .onAppear
 
 **Checkpoint**: App sends macOS notification on new incidents, no duplicates. All 3 user stories work together.
 
@@ -105,13 +105,13 @@
 
 **Purpose**: Settings, launch at login, edge cases, final polish
 
-- [ ] T024 [P] Create `LLMStatus/Views/SettingsView.swift` — Refresh interval picker (1/2/5/10 min), launch at login toggle (SMAppService), notifications enabled toggle, app version display
-- [ ] T025 [P] Create `LLMStatus/Models/AppSettings.swift` — @Observable class with @AppStorage properties: refreshInterval, launchAtLogin, notificationsEnabled
-- [ ] T026 Wire SettingsView into StatusPopoverView footer (sheet or navigation)
-- [ ] T027 Integrate AppSettings into StatusMonitor (use refreshInterval for polling) and NotificationManager (check notificationsEnabled)
-- [ ] T028 Handle edge cases in StatusFetcher: network timeout (5s), invalid JSON (return .unknown status), HTTP errors (log + return .unknown)
-- [ ] T029 Add "Open status page" action on ServiceRowView — open provider statusURL in default browser via NSWorkspace.shared.open()
-- [ ] T030 Add app icon (SF Symbol-based or simple custom icon for menu bar)
+- [X] T024 [P] Create `LLMStatus/Views/SettingsView.swift` — Refresh interval picker (1/2/5/10 min), launch at login toggle (SMAppService), notifications enabled toggle, app version display
+- [X] T025 [P] Create `LLMStatus/Models/AppSettings.swift` — @Observable class with @AppStorage properties: refreshInterval, launchAtLogin, notificationsEnabled
+- [X] T026 Wire SettingsView into StatusPopoverView footer (sheet or navigation)
+- [X] T027 Integrate AppSettings into StatusMonitor (use refreshInterval for polling) and NotificationManager (check notificationsEnabled)
+- [X] T028 Handle edge cases in StatusFetcher: network timeout (5s), invalid JSON (return .unknown status), HTTP errors (log + return .unknown)
+- [X] T029 Add "Open status page" action on ServiceRowView — open provider statusURL in default browser via NSWorkspace.shared.open()
+- [X] T030 Add app icon (SF Symbol-based or simple custom icon for menu bar)
 - [ ] T031 Validate performance: vérifier <50 MB RAM et ~0% CPU idle via Activity Monitor ou Instruments (SC-003)
 
 ---
