@@ -13,13 +13,13 @@ En tant que développeur, je veux voir dans ma menu bar macOS un indicateur colo
 
 **Why this priority**: C'est la proposition de valeur core — visibilité instantanée sans friction.
 
-**Independent Test**: Lancer l'app, vérifier que l'icône apparaît dans la menu bar. Simuler un flux RSS avec un incident actif et vérifier que l'icône passe en rouge.
+**Independent Test**: Lancer l'app, vérifier que l'icône apparaît dans la menu bar. Simuler une réponse JSON avec indicator "major" et vérifier que l'icône passe en rouge.
 
 **Acceptance Scenarios**:
 
-1. **Given** l'app est lancée et les services Anthropic/OpenAI sont opérationnels, **When** l'app parse les flux RSS, **Then** l'icône menu bar affiche un indicateur vert.
-2. **Given** un incident est déclaré sur status.anthropic.com, **When** l'app rafraîchit le flux RSS, **Then** l'icône passe en jaune (dégradé) ou rouge (down) selon la sévérité.
-3. **Given** l'app n'arrive pas à joindre les flux RSS (pas de connexion internet), **When** le refresh échoue, **Then** l'icône affiche un état "inconnu" (gris) sans crash.
+1. **Given** l'app est lancée et les services Anthropic/OpenAI sont opérationnels, **When** l'app parse l'API JSON, **Then** l'icône menu bar affiche un indicateur vert.
+2. **Given** un incident est déclaré sur status.anthropic.com, **When** l'app rafraîchit l'API JSON, **Then** l'icône passe en jaune (dégradé) ou rouge (down) selon la sévérité.
+3. **Given** l'app n'arrive pas à joindre l'API JSON (pas de connexion internet), **When** le refresh échoue, **Then** l'icône affiche un état "inconnu" (gris) sans crash.
 
 ---
 
@@ -44,19 +44,19 @@ En tant que développeur, je veux recevoir une notification macOS native quand u
 
 **Why this priority**: La valeur de l'app est la proactivité — prévenir le dev AVANT qu'il ne rencontre une erreur dans son code.
 
-**Independent Test**: Simuler un changement de statut dans le flux RSS (opérationnel → incident) et vérifier qu'une notification macOS est déclenchée.
+**Independent Test**: Simuler un changement de statut dans l'API JSON (opérationnel → incident) et vérifier qu'une notification macOS est déclenchée.
 
 **Acceptance Scenarios**:
 
-1. **Given** Anthropic API était opérationnel, **When** un nouvel incident apparaît dans le flux RSS, **Then** une notification macOS est envoyée avec le nom du service et le titre de l'incident.
-2. **Given** un incident est déjà connu et notifié, **When** le même incident est encore dans le flux RSS au prochain refresh, **Then** aucune notification dupliquée n'est envoyée.
+1. **Given** Anthropic API était opérationnel, **When** un nouvel incident apparaît dans l'API JSON, **Then** une notification macOS est envoyée avec le nom du service et le titre de l'incident.
+2. **Given** un incident est déjà connu et notifié, **When** le même incident est encore dans l'API JSON au prochain refresh, **Then** aucune notification dupliquée n'est envoyée.
 
 ---
 
 ### Edge Cases
 
-- Que se passe-t-il quand le flux RSS est temporairement inaccessible (timeout réseau) ?
-- Comment l'app gère-t-elle un format RSS inattendu ou modifié par le provider ?
+- Que se passe-t-il quand l'API JSON est temporairement inaccessible (timeout réseau) ?
+- Comment l'app gère-t-elle un format JSON inattendu ou modifié par le provider ?
 - Que se passe-t-il si l'app est lancée pour la première fois sans connexion internet ?
 - Comment gérer les incidents "resolved" — retour au vert automatique ?
 
@@ -64,20 +64,19 @@ En tant que développeur, je veux recevoir une notification macOS native quand u
 
 ### Functional Requirements
 
-- **FR-001**: L'app DOIT parser les flux RSS/Atom de status.anthropic.com et status.openai.com
+- **FR-001**: L'app DOIT récupérer le statut via l'API JSON Statuspage v2 de status.claude.com et status.openai.com (/api/v2/status.json et /api/v2/incidents.json)
 - **FR-002**: L'app DOIT afficher un indicateur coloré (vert/jaune/rouge/gris) dans la menu bar macOS
 - **FR-003**: L'app DOIT envoyer une notification macOS native lors d'un changement de statut (opérationnel → incident)
 - **FR-004**: L'app DOIT afficher un popup avec le détail par service au clic sur l'icône
-- **FR-005**: L'app DOIT rafraîchir les flux RSS à intervalle configurable (défaut : 5 minutes)
+- **FR-005**: L'app DOIT rafraîchir les données via l'API JSON à intervalle configurable (défaut : 5 minutes)
 - **FR-006**: L'app DOIT se lancer au démarrage du Mac (option activable)
 - **FR-007**: L'app DOIT éviter les notifications dupliquées pour un même incident
 
 ### Key Entities
 
-- **Service** — Un provider LLM monitoré (Anthropic, OpenAI), avec son URL de flux RSS, son statut actuel, et la date du dernier check
-- **Incident** — Un événement d'incident parsé du flux RSS, avec titre, sévérité, date, et statut (active/resolved)
-- **StatusCheck** — Un résultat de parsing RSS à un instant T, avec timestamp et liste d'incidents trouvés
-- **Notification** — Un enregistrement des notifications envoyées pour éviter les doublons
+- **ServiceProvider** — Un provider LLM monitoré (Anthropic, OpenAI), avec son URL d'API JSON Statuspage, son statut actuel, et la date du dernier check
+- **Incident** — Un événement d'incident de l'API JSON, avec name, impact (none/minor/major/critical), status (investigating/identified/monitoring/resolved), created_at, resolved_at, incident_updates[], affected_components[]
+- **NotificationRecord** — Un enregistrement des notifications envoyées pour éviter les doublons (incidentID + notifiedAt)
 
 ## Success Criteria
 

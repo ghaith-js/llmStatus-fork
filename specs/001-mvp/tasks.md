@@ -112,6 +112,7 @@
 - [ ] T028 Handle edge cases in StatusFetcher: network timeout (5s), invalid JSON (return .unknown status), HTTP errors (log + return .unknown)
 - [ ] T029 Add "Open status page" action on ServiceRowView — open provider statusURL in default browser via NSWorkspace.shared.open()
 - [ ] T030 Add app icon (SF Symbol-based or simple custom icon for menu bar)
+- [ ] T031 Validate performance: vérifier <50 MB RAM et ~0% CPU idle via Activity Monitor ou Instruments (SC-003)
 
 ---
 
@@ -189,4 +190,4 @@ Task: "Wire into LLMStatusApp.swift"                              # depends on S
 - Constitution requires TDD for business logic (parsing, state transitions)
 - Commit after each task or logical group
 - Zero third-party dependencies — all Foundation/SwiftUI native
-- Total: 30 tasks across 6 phases
+- Total: 31 tasks across 6 phases
