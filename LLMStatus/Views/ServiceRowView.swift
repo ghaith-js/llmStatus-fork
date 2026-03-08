@@ -31,19 +31,10 @@ struct ServiceRowView: View {
                 Spacer()
 
                 if hasComponents {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isExpanded.toggle()
-                        }
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    }
-                    .buttonStyle(.plain)
-                    .focusable(false)
-                    .help(isExpanded ? "Hide services" : "Show services")
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
 
                 Button {
@@ -56,6 +47,13 @@ struct ServiceRowView: View {
                 .buttonStyle(.plain)
                 .focusable(false)
                 .help("Open status page")
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard hasComponents else { return }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
             }
 
             // Components (collapsible)
