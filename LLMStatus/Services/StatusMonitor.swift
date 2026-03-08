@@ -98,18 +98,18 @@ class StatusMonitor {
     }
 
     /// Manual refresh — invalidates caches and resets all providers to loading state
+    /// Manual refresh — invalidates caches and resets all providers to loading state
     func forceRefresh() async {
-        isRefreshing = true
         XAIFetcher.invalidateCache()
         for index in providers.indices {
             providers[index].currentStatus = .unknown
             providers[index].statusDetail = "Refreshing..."
         }
         await fetchAllStatuses()
-        isRefreshing = false
     }
 
     func fetchAllStatuses() async {
+        isRefreshing = true
         notificationManager.purgeStaleEntries()
 
         // Show progress for slow fetchers (xAI uses a headless browser)
@@ -204,6 +204,7 @@ class StatusMonitor {
         }
 
         lastFullCheck = Date()
+        isRefreshing = false
     }
 
     // MARK: - Default Providers
