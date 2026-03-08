@@ -9,6 +9,9 @@ class StatusMonitor {
     var isRefreshing = false
     private var pollingTask: Task<Void, Never>?
 
+    /// Timestamp of the last completed fetch cycle
+    var lastFullCheck: Date?
+
     /// IDs of disabled providers — synced from AppSettings
     var disabledProviderIDs: Set<String> = []
 
@@ -140,6 +143,7 @@ class StatusMonitor {
             }
 
             for await (index, status, incidents, components) in group {
+                let previousStatus = providers[index].currentStatus
                 providers[index].currentStatus = status
                 providers[index].incidents = incidents
                 providers[index].components = components
@@ -150,6 +154,17 @@ class StatusMonitor {
                 guard notificationsEnabled else { continue }
                 let providerID = providers[index].id
                 guard notifyProviderID == "all" || notifyProviderID == providerID else { continue }
+
+                // Recovery notification: was degraded/outage, now operational
+                if status == .operational
+                    && previousStatus != .operational
+                    && previousStatus != .unknown {
+                    await notificationManager.sendRecoveryNotification(
+                        providerName: providers[index].name,
+                        providerID: providerID
+                    )
+                }
+
                 for incident in incidents where incident.isActive {
                     await notificationManager.sendIncidentNotification(
                         providerName: providers[index].name,
@@ -159,6 +174,8 @@ class StatusMonitor {
                 }
             }
         }
+
+        lastFullCheck = Date()
     }
 
     // MARK: - Default Providers

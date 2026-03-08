@@ -3,6 +3,7 @@ import SwiftUI
 struct StatusPopoverView: View {
     let monitor: StatusMonitor
     let settings: AppSettings
+    let network: NetworkMonitor
     @State private var showingSettings = false
 
     var body: some View {
@@ -46,6 +47,21 @@ struct StatusPopoverView: View {
 
                 Divider()
 
+                // Offline banner
+                if !network.isConnected {
+                    HStack(spacing: 6) {
+                        Image(systemName: "wifi.slash")
+                            .font(.caption)
+                        Text("No connection — status may be outdated")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+
+                    Divider()
+                }
+
                 // Provider list (enabled only)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
@@ -82,6 +98,12 @@ struct StatusPopoverView: View {
                     }
                     .buttonStyle(.borderless)
                     .disabled(monitor.isRefreshing)
+
+                    if let lastCheck = monitor.lastFullCheck {
+                        Text(lastCheck, style: .relative)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
 
                     Spacer()
 

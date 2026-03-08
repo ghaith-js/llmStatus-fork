@@ -59,6 +59,22 @@ class NotificationManager {
         markNotified(providerID: providerID, incident: incident)
     }
 
+    /// Send a recovery notification when a provider returns to operational.
+    func sendRecoveryNotification(providerName: String, providerID: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = "\(providerName) — Recovered"
+        content.body = "All systems operational"
+        content.sound = .default
+
+        let identifier = "recovery-\(providerID)-\(Int(Date().timeIntervalSince1970))"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+
+        if Bundle.main.bundleIdentifier != nil {
+            let center = UNUserNotificationCenter.current()
+            try? await center.add(request)
+        }
+    }
+
     /// Deterministic identifier for deduplication.
     static func notificationIdentifier(providerID: String, incidentID: String) -> String {
         "\(providerID)-\(incidentID)"

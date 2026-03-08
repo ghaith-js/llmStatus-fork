@@ -5,21 +5,25 @@ import SwiftUI
 struct LLMStatusApp: App {
     @State private var monitor: StatusMonitor
     @State private var settings = AppSettings()
+    @State private var network = NetworkMonitor()
 
     init() {
         let settings = AppSettings()
         let monitor = StatusMonitor()
+        let network = NetworkMonitor()
         monitor.notificationsEnabled = settings.notificationsEnabled
         monitor.notifyProviderID = settings.menuBarProvider
         monitor.disabledProviderIDs = settings.disabledProviderIDs
         monitor.startPolling(interval: settings.refreshInterval)
+        network.start()
         _monitor = State(initialValue: monitor)
         _settings = State(initialValue: settings)
+        _network = State(initialValue: network)
     }
 
     var body: some Scene {
         MenuBarExtra {
-            StatusPopoverView(monitor: monitor, settings: settings)
+            StatusPopoverView(monitor: monitor, settings: settings, network: network)
                 .onChange(of: settings.refreshInterval) { _, newInterval in
                     monitor.startPolling(interval: newInterval)
                 }
