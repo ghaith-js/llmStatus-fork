@@ -38,27 +38,34 @@ struct SettingsView: View {
 
             // Providers — drag & drop reorder + enable/disable
             Section("Providers") {
-                ForEach(orderedProviders) { provider in
-                    HStack {
-                        Image(systemName: "line.3.horizontal")
-                            .foregroundStyle(.tertiary)
-                            .font(.caption)
+                List {
+                    ForEach(orderedProviders) { provider in
+                        HStack {
+                            Image(systemName: "line.3.horizontal")
+                                .foregroundStyle(.tertiary)
+                                .font(.caption)
 
-                        Toggle(provider.name, isOn: Binding(
-                            get: { settings.isProviderEnabled(provider.id) },
-                            set: { _ in
-                                settings.toggleProvider(provider.id)
-                                monitor.disabledProviderIDs = settings.disabledProviderIDs
-                            }
-                        ))
+                            Toggle(provider.name, isOn: Binding(
+                                get: { settings.isProviderEnabled(provider.id) },
+                                set: { _ in
+                                    settings.toggleProvider(provider.id)
+                                    monitor.disabledProviderIDs = settings.disabledProviderIDs
+                                }
+                            ))
+                        }
+                        .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
+                    }
+                    .onMove { from, to in
+                        orderedProviders.move(fromOffsets: from, toOffset: to)
+                        let ids = orderedProviders.map(\.id)
+                        settings.providerOrderIDs = ids
+                        monitor.reorderProviders(orderedIDs: ids)
                     }
                 }
-                .onMove { from, to in
-                    orderedProviders.move(fromOffsets: from, toOffset: to)
-                    let ids = orderedProviders.map(\.id)
-                    settings.providerOrderIDs = ids
-                    monitor.reorderProviders(orderedIDs: ids)
-                }
+                .listStyle(.plain)
+                .environment(\.defaultMinListRowHeight, 26)
+                .frame(height: CGFloat(orderedProviders.count) * 26)
+                .scrollDisabled(true)
             }
 
             // Logs
