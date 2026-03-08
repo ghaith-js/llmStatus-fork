@@ -56,24 +56,23 @@ struct ServiceRowView: View {
                 }
             }
 
-            // Components (collapsible)
+            // Components (collapsible, grouped)
             if isExpanded {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     ForEach(provider.components) { component in
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(component.status.color)
-                                .frame(width: 6, height: 6)
-
+                        if component.isGroup {
+                            // Group header
                             Text(component.name)
-                                .font(.caption)
-                                .lineLimit(1)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .padding(.top, 4)
 
-                            Spacer()
-
-                            Text(component.status.label)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                            // Group children
+                            ForEach(component.children) { child in
+                                componentRow(child)
+                            }
+                        } else {
+                            componentRow(component)
                         }
                     }
                 }
@@ -106,5 +105,23 @@ struct ServiceRowView: View {
         }
         .padding(.vertical, 4)
         .focusEffectDisabled()
+    }
+
+    private func componentRow(_ component: ServiceComponent) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(component.status.color)
+                .frame(width: 6, height: 6)
+
+            Text(component.name)
+                .font(.caption)
+                .lineLimit(1)
+
+            Spacer()
+
+            Text(component.status.label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
     }
 }

@@ -12,6 +12,10 @@ struct ServiceComponent: Identifiable, Codable {
     let id: String
     let name: String
     var status: ServiceStatus
+    var children: [ServiceComponent] = []
+
+    /// True if this is a group header with children
+    var isGroup: Bool { !children.isEmpty }
 }
 
 struct ServiceProvider: Identifiable, Codable {
