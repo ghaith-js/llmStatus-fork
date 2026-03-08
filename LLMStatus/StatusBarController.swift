@@ -118,12 +118,31 @@ final class StatusBarController: NSObject {
         lastIconStatus = status
         lastIconLabel = label
 
-        button.image = coloredDot(status.nsColor)
+        button.image = tintedMenuBarIcon(status.nsColor)
         button.title = " \(label)"
         button.imagePosition = .imageLeading
     }
 
-    private func coloredDot(_ color: NSColor) -> NSImage {
+    private func tintedMenuBarIcon(_ tint: NSColor) -> NSImage {
+        guard let template = NSImage(named: "MenuBarIcon") ?? Bundle.module.image(forResource: "MenuBarIcon") else {
+            return fallbackDot(tint)
+        }
+
+        let height: CGFloat = 18
+        let aspect = template.size.width / template.size.height
+        let size = NSSize(width: height * aspect, height: height)
+
+        let image = NSImage(size: size, flipped: false) { rect in
+            template.draw(in: rect)
+            tint.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
+    private func fallbackDot(_ color: NSColor) -> NSImage {
         let size = NSSize(width: 11, height: 11)
         let image = NSImage(size: size, flipped: false) { rect in
             color.setFill()
