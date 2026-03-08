@@ -14,9 +14,15 @@ struct ServiceRowView: View {
                     Text(provider.name)
                         .font(.headline)
 
-                    Text(provider.currentStatus.label)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Text(provider.statusDetail ?? provider.currentStatus.label)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if provider.statusDetail != nil {
+                            ProgressView()
+                                .controlSize(.mini)
+                        }
+                    }
                 }
 
                 Spacer()

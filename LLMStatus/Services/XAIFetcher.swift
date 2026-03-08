@@ -11,6 +11,14 @@ enum XAIFetcher {
     private static var cachedIncidents: [Incident] = []
     private static var lastFetchDate: Date?
     private static var isFetching = false
+    /// Current fetch step for UI progress display
+    static var progressMessage: String?
+
+    /// Whether we have a cached result that hasn't expired
+    static var hasCachedResult: Bool {
+        guard let lastFetch = lastFetchDate else { return false }
+        return Date().timeIntervalSince(lastFetch) < cacheDuration
+    }
 
     private struct ScriptResult: Codable {
         let status: String
@@ -45,15 +53,18 @@ enum XAIFetcher {
         defer { isFetching = false }
 
         logger.info("Fetching xAI status via Python script...")
+        progressMessage = "Launching browser..."
 
         guard let result = await runPythonScript() else {
             logger.warning("Python script returned no result")
             cachedStatus = .unknown
             cachedIncidents = []
             lastFetchDate = Date()
+            progressMessage = nil
             return
         }
 
+        progressMessage = "Parsing response..."
         cachedStatus = mapStatus(result.status)
         cachedIncidents = result.incidents.map { inc in
             Incident(
@@ -74,6 +85,7 @@ enum XAIFetcher {
             logger.warning("xAI fetch error: \(error)")
         }
 
+        progressMessage = nil
         logger.info("xAI status: \(result.status)")
     }
 

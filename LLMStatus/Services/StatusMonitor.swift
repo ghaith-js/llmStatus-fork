@@ -57,6 +57,13 @@ class StatusMonitor {
     }
 
     func fetchAllStatuses() async {
+        // Show progress for slow fetchers (xAI uses a headless browser)
+        for (index, provider) in providers.enumerated() {
+            if provider.fetcherType == .xai && !XAIFetcher.hasCachedResult {
+                providers[index].statusDetail = "Launching browser..."
+            }
+        }
+
         await withTaskGroup(of: (Int, ServiceStatus, [Incident]).self) { group in
             for (index, provider) in providers.enumerated() {
                 let fetcherType = provider.fetcherType
@@ -102,6 +109,7 @@ class StatusMonitor {
                 providers[index].currentStatus = status
                 providers[index].incidents = incidents
                 providers[index].lastChecked = Date()
+                providers[index].statusDetail = nil
 
                 // Notify only for the prioritized provider (or all)
                 guard notificationsEnabled else { continue }

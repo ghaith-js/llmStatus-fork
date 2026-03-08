@@ -18,4 +18,5 @@ struct ServiceProvider: Identifiable, Codable {
     var currentStatus: ServiceStatus
     var lastChecked: Date?
     var incidents: [Incident]
+    var statusDetail: String?
 }
