@@ -1,7 +1,6 @@
 import Foundation
-import OSLog
 
-private let logger = Logger(subsystem: "com.llmstatus", category: "StatusFetcher")
+private let log = FileLogger.shared
 
 enum StatusFetcher {
     private static let session: URLSession = {
@@ -17,12 +16,12 @@ enum StatusFetcher {
         do {
             let (data, response) = try await session.data(from: url)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                logger.warning("Non-200 status for \(url)")
+                log.warning("Non-200 status for \(url)", source: "StatusFetcher")
                 return nil
             }
             return try JSONDecoder().decode(StatusResponse.self, from: data)
         } catch {
-            logger.error("fetchStatus failed: \(error.localizedDescription)")
+            log.error("fetchStatus failed: \(error.localizedDescription)", source: "StatusFetcher")
             return nil
         }
     }
@@ -33,13 +32,13 @@ enum StatusFetcher {
         do {
             let (data, response) = try await session.data(from: url)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                logger.warning("Non-200 status for \(url)")
+                log.warning("Non-200 status for \(url)", source: "StatusFetcher")
                 return []
             }
             let decoded = try JSONDecoder().decode(IncidentsResponse.self, from: data)
             return decoded.incidents.compactMap { $0.toIncident() }
         } catch {
-            logger.error("fetchIncidents failed: \(error.localizedDescription)")
+            log.error("fetchIncidents failed: \(error.localizedDescription)", source: "StatusFetcher")
             return []
         }
     }

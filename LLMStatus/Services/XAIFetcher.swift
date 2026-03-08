@@ -1,7 +1,6 @@
 import Foundation
-import OSLog
 
-private let logger = Logger(subsystem: "com.llmstatus", category: "XAIFetcher")
+private let log = FileLogger.shared
 
 /// Fetches xAI status by running a Python script that uses StealthyFetcher
 /// to bypass Cloudflare. Results are cached for 10 minutes.
@@ -52,11 +51,10 @@ enum XAIFetcher {
         isFetching = true
         defer { isFetching = false }
 
-        logger.info("Fetching xAI status via Python script...")
         progressMessage = "Launching browser..."
 
         guard let result = await runPythonScript() else {
-            logger.warning("Python script returned no result")
+            log.warning("Python script returned no result", source: "XAIFetcher")
             cachedStatus = .unknown
             cachedIncidents = []
             lastFetchDate = Date()
@@ -82,11 +80,10 @@ enum XAIFetcher {
         lastFetchDate = Date()
 
         if let error = result.error {
-            logger.warning("xAI fetch error: \(error)")
+            log.error("xAI script error: \(error)", source: "XAIFetcher")
         }
 
         progressMessage = nil
-        logger.info("xAI status: \(result.status)")
     }
 
     private static func runPythonScript() async -> ScriptResult? {
@@ -95,7 +92,7 @@ enum XAIFetcher {
         let scriptPath = findScript(named: scriptName)
 
         guard let path = scriptPath else {
-            logger.error("Cannot find \(scriptName)")
+            log.error("Cannot find \(scriptName)", source: "XAIFetcher")
             return nil
         }
 
@@ -130,7 +127,7 @@ enum XAIFetcher {
                     let result = try JSONDecoder().decode(ScriptResult.self, from: data)
                     continuation.resume(returning: result)
                 } catch {
-                    logger.error("Failed to run Python script: \(error.localizedDescription)")
+                    log.error("Failed to run Python script: \(error.localizedDescription)", source: "XAIFetcher")
                     continuation.resume(returning: nil)
                 }
             }
