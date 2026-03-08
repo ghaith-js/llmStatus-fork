@@ -3,61 +3,32 @@ import SwiftUI
 
 @main
 struct LLMStatusApp: App {
-    @State private var monitor: StatusMonitor
-    @State private var settings = AppSettings()
-    @State private var network = NetworkMonitor()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
-    init() {
+    var body: some Scene {
+        // No visible windows — everything runs from the menu bar
+        Settings { EmptyView() }
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var statusBarController: StatusBarController?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = AppSettings()
         let monitor = StatusMonitor()
         let network = NetworkMonitor()
+
         monitor.notificationsEnabled = settings.notificationsEnabled
         monitor.notifyProviderID = settings.menuBarProvider
         monitor.disabledProviderIDs = settings.disabledProviderIDs
         monitor.startPolling(interval: settings.refreshInterval)
         network.start()
-        _monitor = State(initialValue: monitor)
-        _settings = State(initialValue: settings)
-        _network = State(initialValue: network)
-    }
 
-    var body: some Scene {
-        MenuBarExtra {
-            StatusPopoverView(monitor: monitor, settings: settings, network: network)
-                .onChange(of: settings.refreshInterval) { _, newInterval in
-                    monitor.startPolling(interval: newInterval)
-                }
-                .onChange(of: settings.notificationsEnabled) { _, enabled in
-                    monitor.notificationsEnabled = enabled
-                }
-                .onChange(of: settings.menuBarProvider) { _, providerID in
-                    monitor.notifyProviderID = providerID
-                }
-                .onChange(of: settings.disabledProviders) { _, _ in
-                    monitor.disabledProviderIDs = settings.disabledProviderIDs
-                }
-        } label: {
-            let status = monitor.menuBarStatus(for: settings.menuBarProvider)
-            let label = monitor.menuBarLabel(for: settings.menuBarProvider)
-            HStack(spacing: 6) {
-                Image(nsImage: coloredDot(status.nsColor))
-                Text(label)
-                    .font(.system(size: 12, weight: .medium))
-            }
-        }
-        .menuBarExtraStyle(.window)
-        .defaultSize(width: 320, height: 400)
-    }
-
-    /// Draws a colored circle as a non-template NSImage so macOS won't strip the color.
-    private func coloredDot(_ color: NSColor) -> NSImage {
-        let size = NSSize(width: 11, height: 11)
-        let image = NSImage(size: size, flipped: false) { rect in
-            color.setFill()
-            NSBezierPath(ovalIn: rect).fill()
-            return true
-        }
-        image.isTemplate = false
-        return image
+        statusBarController = StatusBarController(
+            monitor: monitor,
+            settings: settings,
+            network: network
+        )
     }
 }

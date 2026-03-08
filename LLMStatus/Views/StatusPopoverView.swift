@@ -98,7 +98,6 @@ struct StatusPopoverView: View {
                     }
                     .buttonStyle(.borderless)
                     .disabled(monitor.isRefreshing)
-                    .keyboardShortcut("r", modifiers: .command)
 
                     if let lastCheck = monitor.lastFullCheck {
                         Text(lastCheck, style: .relative)
@@ -115,7 +114,6 @@ struct StatusPopoverView: View {
                             .font(.caption)
                     }
                     .buttonStyle(.borderless)
-                    .keyboardShortcut(",", modifiers: .command)
 
                     Button {
                         NSApplication.shared.terminate(nil)
@@ -124,7 +122,6 @@ struct StatusPopoverView: View {
                             .font(.caption)
                     }
                     .buttonStyle(.borderless)
-                    .keyboardShortcut("q", modifiers: .command)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
