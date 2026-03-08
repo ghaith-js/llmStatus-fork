@@ -1,16 +1,7 @@
 import Foundation
 
-private let log = FileLogger.shared
-
 /// Fetches status from Groq's incident.io API (groqstatus.com/api/v1/summary).
 enum GroqFetcher {
-    private static let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 10
-        config.timeoutIntervalForResource = 15
-        return URLSession(configuration: config)
-    }()
-
     struct SummaryResponse: Codable {
         let ongoingIncidents: [GroqIncident]
         let inProgressMaintenances: [GroqIncident]
@@ -50,59 +41,45 @@ enum GroqFetcher {
     }
 
     static func fetchStatus(baseURL: URL) async -> ServiceStatus {
-        let url = baseURL.appendingPathComponent("api/v1/summary")
-        do {
-            let (data, response) = try await session.data(from: url)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                log.warning("Non-200 for \(url)", source: "GroqFetcher")
-                return .unknown
-            }
-            let summary = try JSONDecoder().decode(SummaryResponse.self, from: data)
+        guard let data = await HTTPClient.fetch(
+            baseURL.appendingPathComponent("api/v1/summary"), source: "GroqFetcher"
+        ) else { return .unknown }
 
-            if summary.ongoingIncidents.isEmpty && summary.inProgressMaintenances.isEmpty {
-                return .operational
-            }
+        guard let summary = try? JSONDecoder().decode(SummaryResponse.self, from: data) else { return .unknown }
 
-            // Check severity from component statuses
-            let statuses = summary.ongoingIncidents
-                .flatMap { $0.affectedComponents ?? [] }
-                .compactMap { $0.currentStatus }
-
-            if statuses.contains("full_outage") { return .critical }
-            if statuses.contains("partial_outage") { return .majorOutage }
-            if statuses.contains("degraded_performance") { return .degraded }
-
-            return summary.ongoingIncidents.isEmpty ? .operational : .degraded
-        } catch {
-            log.error("fetchStatus failed: \(error.localizedDescription)", source: "GroqFetcher")
-            return .unknown
+        if summary.ongoingIncidents.isEmpty && summary.inProgressMaintenances.isEmpty {
+            return .operational
         }
+
+        let statuses = summary.ongoingIncidents
+            .flatMap { $0.affectedComponents ?? [] }
+            .compactMap { $0.currentStatus }
+
+        if statuses.contains("full_outage") { return .critical }
+        if statuses.contains("partial_outage") { return .majorOutage }
+        if statuses.contains("degraded_performance") { return .degraded }
+
+        return summary.ongoingIncidents.isEmpty ? .operational : .degraded
     }
 
     static func fetchIncidents(baseURL: URL) async -> [Incident] {
-        let url = baseURL.appendingPathComponent("api/v1/summary")
-        do {
-            let (data, response) = try await session.data(from: url)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                return []
-            }
-            let summary = try JSONDecoder().decode(SummaryResponse.self, from: data)
-            return summary.ongoingIncidents.map { inc in
-                Incident(
-                    id: inc.id,
-                    name: inc.name,
-                    impact: .major,
-                    status: .investigating,
-                    createdAt: ISO8601DateFormatter().date(from: inc.lastUpdateAt ?? "") ?? Date(),
-                    resolvedAt: nil,
-                    shortlink: inc.url,
-                    updates: [],
-                    affectedComponents: inc.affectedComponents?.map(\.name) ?? []
-                )
-            }
-        } catch {
-            log.error("fetchIncidents failed: \(error.localizedDescription)", source: "GroqFetcher")
-            return []
+        guard let data = await HTTPClient.fetch(
+            baseURL.appendingPathComponent("api/v1/summary"), source: "GroqFetcher"
+        ) else { return [] }
+
+        guard let summary = try? JSONDecoder().decode(SummaryResponse.self, from: data) else { return [] }
+        return summary.ongoingIncidents.map { inc in
+            Incident(
+                id: inc.id,
+                name: inc.name,
+                impact: .major,
+                status: .investigating,
+                createdAt: ISO8601DateFormatter().date(from: inc.lastUpdateAt ?? "") ?? Date(),
+                resolvedAt: nil,
+                shortlink: inc.url,
+                updates: [],
+                affectedComponents: inc.affectedComponents?.map(\.name) ?? []
+            )
         }
     }
 }

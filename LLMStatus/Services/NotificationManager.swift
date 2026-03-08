@@ -10,6 +10,8 @@ class NotificationManager {
 
     /// Tracks "providerID-incidentID" → last notified status + timestamp
     private var notifiedIncidents: [String: NotifiedEntry] = [:]
+    /// Tracks providerIDs that already received a recovery notification
+    private var notifiedRecoveries: Set<String> = []
 
     /// Request notification permission from macOS.
     func requestPermission() async {
@@ -54,11 +56,18 @@ class NotificationManager {
 
     /// Send a recovery notification when a provider returns to operational.
     func sendRecoveryNotification(providerName: String, providerID: String) async {
+        guard !notifiedRecoveries.contains(providerID) else { return }
+        notifiedRecoveries.insert(providerID)
         await deliver(
             title: "\(providerName) — Recovered",
             body: "All systems operational",
-            identifier: "recovery-\(providerID)-\(Int(Date().timeIntervalSince1970))"
+            identifier: "recovery-\(providerID)"
         )
+    }
+
+    /// Clear recovery tracking when a provider goes down (so next recovery triggers again).
+    func clearRecovery(providerID: String) {
+        notifiedRecoveries.remove(providerID)
     }
 
     private func deliver(title: String, body: String, identifier: String) async {

@@ -193,6 +193,9 @@ class StatusMonitor {
                         providerName: providers[index].name,
                         providerID: providerID
                     )
+                } else if status != .operational && status != .unknown {
+                    // Provider went down — reset recovery tracking so next recovery triggers
+                    notificationManager.clearRecovery(providerID: providerID)
                 }
 
                 for incident in incidents where incident.isActive {
