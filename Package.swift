@@ -9,7 +9,7 @@ let package = Package(
         .executableTarget(
             name: "LLMStatus",
             path: "LLMStatus",
-            resources: [.process("Assets.xcassets")]
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "LLMStatusTests",

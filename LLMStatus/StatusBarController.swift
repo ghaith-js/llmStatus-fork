@@ -124,7 +124,8 @@ final class StatusBarController: NSObject {
     }
 
     private func tintedMenuBarIcon(_ tint: NSColor) -> NSImage {
-        guard let template = NSImage(named: "MenuBarIcon") ?? Bundle.module.image(forResource: "MenuBarIcon") else {
+        guard let url = Bundle.module.url(forResource: "MenuBarIcon", withExtension: "pdf"),
+              let template = NSImage(contentsOf: url) else {
             return fallbackDot(tint)
         }
 
