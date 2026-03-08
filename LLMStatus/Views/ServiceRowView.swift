@@ -105,5 +105,6 @@ struct ServiceRowView: View {
             }
         }
         .padding(.vertical, 4)
+        .focusEffectDisabled()
     }
 }
