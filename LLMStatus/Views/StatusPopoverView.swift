@@ -102,7 +102,7 @@ struct StatusPopoverView: View {
                     .disabled(monitor.isRefreshing)
 
                     if let lastCheck = monitor.lastFullCheck {
-                        TimelineView(.periodic(from: .now, by: 10)) { _ in
+                        TimelineView(.periodic(from: .now, by: 1)) { _ in
                             Text(Self.relativeTime(from: lastCheck))
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
