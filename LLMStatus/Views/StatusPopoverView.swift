@@ -46,14 +46,14 @@ struct StatusPopoverView: View {
 
                 Divider()
 
-                // Provider list
+                // Provider list (enabled only)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        ForEach(monitor.providers) { provider in
+                        ForEach(monitor.enabledProviders) { provider in
                             ServiceRowView(provider: provider)
                                 .padding(.horizontal, 12)
 
-                            if provider.id != monitor.providers.last?.id {
+                            if provider.id != monitor.enabledProviders.last?.id {
                                 Divider()
                                     .padding(.horizontal, 12)
                             }

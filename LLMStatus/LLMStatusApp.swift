@@ -11,6 +11,7 @@ struct LLMStatusApp: App {
         let monitor = StatusMonitor()
         monitor.notificationsEnabled = settings.notificationsEnabled
         monitor.notifyProviderID = settings.menuBarProvider
+        monitor.disabledProviderIDs = settings.disabledProviderIDs
         monitor.startPolling(interval: settings.refreshInterval)
         _monitor = State(initialValue: monitor)
         _settings = State(initialValue: settings)
@@ -27,6 +28,9 @@ struct LLMStatusApp: App {
                 }
                 .onChange(of: settings.menuBarProvider) { _, providerID in
                     monitor.notifyProviderID = providerID
+                }
+                .onChange(of: settings.disabledProviders) { _, _ in
+                    monitor.disabledProviderIDs = settings.disabledProviderIDs
                 }
         } label: {
             let status = monitor.menuBarStatus(for: settings.menuBarProvider)

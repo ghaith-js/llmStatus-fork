@@ -7,10 +7,10 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            // Menu bar icon source
+            // Menu bar icon source — only enabled providers
             Picker("Menu bar icon", selection: $settings.menuBarProvider) {
                 Text("All providers").tag("all")
-                ForEach(providers) { provider in
+                ForEach(providers.filter { settings.isProviderEnabled($0.id) }) { provider in
                     Text(provider.name).tag(provider.id)
                 }
             }
@@ -34,6 +34,16 @@ struct SettingsView: View {
 
             // Notifications
             Toggle("Notifications enabled", isOn: $settings.notificationsEnabled)
+
+            // Providers toggle
+            Section("Providers") {
+                ForEach(providers) { provider in
+                    Toggle(provider.name, isOn: Binding(
+                        get: { settings.isProviderEnabled(provider.id) },
+                        set: { _ in settings.toggleProvider(provider.id) }
+                    ))
+                }
+            }
 
             // Logs
             Section {

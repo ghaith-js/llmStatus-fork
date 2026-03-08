@@ -9,10 +9,19 @@ class StatusMonitor {
     var isRefreshing = false
     private var pollingTask: Task<Void, Never>?
 
-    /// Worst status across all providers (highest severity wins).
+    /// IDs of disabled providers — synced from AppSettings
+    var disabledProviderIDs: Set<String> = []
+
+    /// Only enabled providers
+    var enabledProviders: [ServiceProvider] {
+        providers.filter { !disabledProviderIDs.contains($0.id) }
+    }
+
+    /// Worst status across enabled providers (highest severity wins).
     var aggregatedStatus: ServiceStatus {
-        guard !providers.isEmpty else { return .unknown }
-        return providers
+        let active = enabledProviders
+        guard !active.isEmpty else { return .unknown }
+        return active
             .map(\.currentStatus)
             .max(by: { $0.severity < $1.severity }) ?? .unknown
     }
@@ -72,6 +81,7 @@ class StatusMonitor {
     func fetchAllStatuses() async {
         // Show progress for slow fetchers (xAI uses a headless browser)
         for (index, provider) in providers.enumerated() {
+            if disabledProviderIDs.contains(provider.id) { continue }
             if provider.fetcherType == .xai && !XAIFetcher.hasCachedResult {
                 providers[index].statusDetail = "Launching browser..."
             }
@@ -79,6 +89,7 @@ class StatusMonitor {
 
         await withTaskGroup(of: (Int, ServiceStatus, [Incident]).self) { group in
             for (index, provider) in providers.enumerated() {
+                guard !disabledProviderIDs.contains(provider.id) else { continue }
                 let fetcherType = provider.fetcherType
                 let baseURL = provider.apiBaseURL
                 group.addTask {

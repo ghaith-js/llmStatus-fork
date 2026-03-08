@@ -11,6 +11,32 @@ class AppSettings {
     @AppStorage("notificationsEnabled") var notificationsEnabled: Bool = true
     @ObservationIgnored
     @AppStorage("menuBarProvider") var menuBarProvider: String = "all"
+    @ObservationIgnored
+    @AppStorage("disabledProviders") var disabledProviders: String = ""
+
+    /// IDs of providers the user has disabled
+    var disabledProviderIDs: Set<String> {
+        get {
+            Set(disabledProviders.split(separator: ",").map(String.init))
+        }
+        set {
+            disabledProviders = newValue.sorted().joined(separator: ",")
+        }
+    }
+
+    func isProviderEnabled(_ id: String) -> Bool {
+        !disabledProviderIDs.contains(id)
+    }
+
+    func toggleProvider(_ id: String) {
+        var ids = disabledProviderIDs
+        if ids.contains(id) {
+            ids.remove(id)
+        } else {
+            ids.insert(id)
+        }
+        disabledProviderIDs = ids
+    }
 
     /// Human-readable interval options for the picker.
     static let intervalOptions: [(label: String, value: TimeInterval)] = [
