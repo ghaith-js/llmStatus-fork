@@ -17,7 +17,8 @@ struct StatusPopoverView: View {
                         Image(systemName: "chevron.left")
                             .font(.caption.weight(.semibold))
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
+                    .focusable(false)
 
                     Text("Settings")
                         .font(.headline)
@@ -96,7 +97,8 @@ struct StatusPopoverView: View {
                         }
                         .font(.caption)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
+                    .focusable(false)
                     .disabled(monitor.isRefreshing)
 
                     if let lastCheck = monitor.lastFullCheck {
@@ -115,7 +117,8 @@ struct StatusPopoverView: View {
                         Label("Settings", systemImage: "gear")
                             .font(.caption)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
+                    .focusable(false)
 
                     Button {
                         NSApplication.shared.terminate(nil)
@@ -123,13 +126,15 @@ struct StatusPopoverView: View {
                         Text("Quit")
                             .font(.caption)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
+                    .focusable(false)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             }
         }
         .frame(width: 320)
+        .focusable(false)
         .focusEffectDisabled()
     }
 
