@@ -116,9 +116,9 @@ enum StatusFetcher {
 
     static func fetchIncidents(baseURL: URL) async -> [Incident] {
         guard let data = await HTTPClient.fetch(
-            baseURL.appendingPathComponent("incidents/unresolved.json"), source: "StatusFetcher"
+            baseURL.appendingPathComponent("incidents.json"), source: "StatusFetcher"
         ) else { return [] }
         guard let decoded = try? JSONDecoder().decode(IncidentsResponse.self, from: data) else { return [] }
-        return decoded.incidents.compactMap { $0.toIncident() }
+        return decoded.incidents.compactMap { $0.toIncident() }.filter { $0.resolvedAt == nil }
     }
 }

@@ -135,6 +135,9 @@ struct StatusPopoverView: View {
         .frame(width: 320)
         .focusable(false)
         .focusEffectDisabled()
+        .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
+            showingSettings = true
+        }
     }
 
     static func relativeTime(from date: Date) -> String {

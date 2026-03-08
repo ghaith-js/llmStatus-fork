@@ -44,7 +44,7 @@ struct ComponentsResponse: Codable {
     }
 }
 
-/// DTO for /api/v2/incidents/unresolved.json
+/// DTO for /api/v2/incidents.json
 struct IncidentsResponse: Codable {
     let incidents: [IncidentDTO]
 

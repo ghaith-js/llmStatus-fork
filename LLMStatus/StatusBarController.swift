@@ -1,6 +1,10 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    static let showSettings = Notification.Name("showSettings")
+}
+
 /// Manages the NSStatusItem with left-click (popover) and right-click (context menu).
 final class StatusBarController: NSObject {
     private var statusItem: NSStatusItem
@@ -83,6 +87,10 @@ final class StatusBarController: NSObject {
         refreshItem.target = self
         menu.addItem(refreshItem)
 
+        let settingsItem = NSMenuItem(title: "Settings", action: #selector(settingsAction), keyEquivalent: "")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: "Quit LLM Status", action: #selector(quitAction), keyEquivalent: "")
@@ -97,6 +105,15 @@ final class StatusBarController: NSObject {
 
     @objc private func refreshAction() {
         Task { await monitor.forceRefresh() }
+    }
+
+    @objc private func settingsAction() {
+        // Open popover then notify it to show settings
+        if !popover.isShown, let button = statusItem.button {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            popover.contentViewController?.view.window?.makeKey()
+        }
+        NotificationCenter.default.post(name: .showSettings, object: nil)
     }
 
     @objc private func quitAction() {
