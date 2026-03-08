@@ -21,6 +21,9 @@ bundle: build
 	@cp LLMStatus/Resources/AppIcon.icns $(BUNDLE_DIR)/Contents/Resources/
 	@# Copy SPM resource bundle (contains MenuBarIcon.pdf etc.)
 	@cp -R $(BUILD_DIR)/LLMStatus_LLMStatus.bundle $(BUNDLE_DIR)/Contents/Resources/
+	@# Copy Python scripts
+	@mkdir -p $(BUNDLE_DIR)/Contents/Resources/scripts
+	@cp scripts/*.py $(BUNDLE_DIR)/Contents/Resources/scripts/
 	@echo "✓ Bundle created at build/$(BUNDLE_NAME)"
 
 sign: bundle
