@@ -43,36 +43,32 @@ class NotificationManager {
     func sendIncidentNotification(providerName: String, providerID: String, incident: Incident) async {
         guard shouldNotify(providerID: providerID, incident: incident) else { return }
 
-        let content = UNMutableNotificationContent()
-        content.title = "\(providerName) — \(incident.impact.rawValue.capitalized)"
-        content.body = incident.name
-        content.sound = .default
-
         let identifier = Self.notificationIdentifier(providerID: providerID, incidentID: incident.id)
-        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
-
-        if Bundle.main.bundleIdentifier != nil {
-            let center = UNUserNotificationCenter.current()
-            try? await center.add(request)
-        }
-
+        await deliver(
+            title: "\(providerName) — \(incident.impact.rawValue.capitalized)",
+            body: incident.name,
+            identifier: identifier
+        )
         markNotified(providerID: providerID, incident: incident)
     }
 
     /// Send a recovery notification when a provider returns to operational.
     func sendRecoveryNotification(providerName: String, providerID: String) async {
+        await deliver(
+            title: "\(providerName) — Recovered",
+            body: "All systems operational",
+            identifier: "recovery-\(providerID)-\(Int(Date().timeIntervalSince1970))"
+        )
+    }
+
+    private func deliver(title: String, body: String, identifier: String) async {
+        guard Bundle.main.bundleIdentifier != nil else { return }
         let content = UNMutableNotificationContent()
-        content.title = "\(providerName) — Recovered"
-        content.body = "All systems operational"
+        content.title = title
+        content.body = body
         content.sound = .default
-
-        let identifier = "recovery-\(providerID)-\(Int(Date().timeIntervalSince1970))"
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
-
-        if Bundle.main.bundleIdentifier != nil {
-            let center = UNUserNotificationCenter.current()
-            try? await center.add(request)
-        }
+        try? await UNUserNotificationCenter.current().add(request)
     }
 
     /// Deterministic identifier for deduplication.

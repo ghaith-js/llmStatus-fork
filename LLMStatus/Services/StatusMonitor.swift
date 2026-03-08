@@ -24,22 +24,15 @@ class StatusMonitor {
     /// Only enabled providers, respecting custom order with issues bumped to top.
     var enabledProviders: [ServiceProvider] {
         let enabled = providers.filter { !disabledProviderIDs.contains($0.id) }
-
-        // Apply custom order if set
-        let ordered: [ServiceProvider]
-        if providerOrderIDs.isEmpty {
-            ordered = enabled
-        } else {
+        let ordered = providerOrderIDs.isEmpty ? enabled : {
             let lookup = Dictionary(uniqueKeysWithValues: enabled.map { ($0.id, $0) })
-            let fromOrder = providerOrderIDs.compactMap { lookup[$0] }
-            let remaining = enabled.filter { p in !providerOrderIDs.contains(p.id) }
-            ordered = fromOrder + remaining
-        }
+            return providerOrderIDs.compactMap { lookup[$0] }
+                + enabled.filter { !providerOrderIDs.contains($0.id) }
+        }()
 
         // Stable partition: issues first, then the rest in custom order
-        let withIssues = ordered.filter { $0.currentStatus.severity >= 2 }
-        let rest = ordered.filter { $0.currentStatus.severity < 2 }
-        return withIssues + rest
+        return ordered.filter { $0.currentStatus.severity >= 2 }
+            + ordered.filter { $0.currentStatus.severity < 2 }
     }
 
     /// Worst status across enabled providers (highest severity wins).
@@ -71,13 +64,18 @@ class StatusMonitor {
         self.providers = Self.defaultProviders()
     }
 
-    /// Reorder the providers array to match the given ID order.
+    /// Update the custom display order (enabledProviders uses this).
     func reorderProviders(orderedIDs: [String]) {
         providerOrderIDs = orderedIDs
+    }
+
+    /// Return providers sorted by the given ID order (unordered providers appended at end).
+    func orderedProviders(by orderIDs: [String]) -> [ServiceProvider] {
+        guard !orderIDs.isEmpty else { return providers }
         let lookup = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0) })
-        let reordered = orderedIDs.compactMap { lookup[$0] }
-        let remaining = providers.filter { p in !orderedIDs.contains(p.id) }
-        providers = reordered + remaining
+        let fromOrder = orderIDs.compactMap { lookup[$0] }
+        let remaining = providers.filter { p in !orderIDs.contains(p.id) }
+        return fromOrder + remaining
     }
 
     // MARK: - Polling

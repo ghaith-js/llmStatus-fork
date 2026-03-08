@@ -62,7 +62,8 @@ struct SettingsView: View {
                     }
                 }
                 .listStyle(.plain)
-                .frame(height: CGFloat(orderedProviders.count) * 28)
+                .frame(height: CGFloat(orderedProviders.count) * 30)
+                .scrollDisabled(true)
             }
 
             // Logs
@@ -84,16 +85,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear {
-            // Initialize with current order
-            let savedOrder = settings.providerOrderIDs
-            if savedOrder.isEmpty {
-                orderedProviders = monitor.providers
-            } else {
-                let lookup = Dictionary(uniqueKeysWithValues: monitor.providers.map { ($0.id, $0) })
-                let fromOrder = savedOrder.compactMap { lookup[$0] }
-                let remaining = monitor.providers.filter { p in !savedOrder.contains(p.id) }
-                orderedProviders = fromOrder + remaining
-            }
+            orderedProviders = monitor.orderedProviders(by: settings.providerOrderIDs)
         }
     }
 }
