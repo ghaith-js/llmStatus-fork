@@ -67,12 +67,21 @@ struct StatusPopoverView: View {
                 // Footer
                 HStack(spacing: 12) {
                     Button {
-                        Task { await monitor.fetchAllStatuses() }
+                        Task { await monitor.forceRefresh() }
                     } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
-                            .font(.caption)
+                        HStack(spacing: 4) {
+                            if monitor.isRefreshing {
+                                ProgressView()
+                                    .controlSize(.mini)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            Text("Refresh")
+                        }
+                        .font(.caption)
                     }
                     .buttonStyle(.borderless)
+                    .disabled(monitor.isRefreshing)
 
                     Spacer()
 

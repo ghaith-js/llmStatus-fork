@@ -30,6 +30,11 @@ enum XAIFetcher {
         }
     }
 
+    /// Invalidate cache so next fetch is forced
+    static func invalidateCache() {
+        lastFetchDate = nil
+    }
+
     static func fetchStatus(baseURL: URL) async -> ServiceStatus {
         await refreshCacheIfNeeded()
         return cachedStatus ?? .unknown

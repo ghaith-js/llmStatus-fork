@@ -6,6 +6,7 @@ class StatusMonitor {
     let notificationManager = NotificationManager()
     var notificationsEnabled = true
     var notifyProviderID = "all"
+    var isRefreshing = false
     private var pollingTask: Task<Void, Never>?
 
     /// Worst status across all providers (highest severity wins).
@@ -54,6 +55,18 @@ class StatusMonitor {
     func stopPolling() {
         pollingTask?.cancel()
         pollingTask = nil
+    }
+
+    /// Manual refresh — invalidates caches and resets all providers to loading state
+    func forceRefresh() async {
+        isRefreshing = true
+        XAIFetcher.invalidateCache()
+        for index in providers.indices {
+            providers[index].currentStatus = .unknown
+            providers[index].statusDetail = "Refreshing..."
+        }
+        await fetchAllStatuses()
+        isRefreshing = false
     }
 
     func fetchAllStatuses() async {
