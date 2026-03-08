@@ -51,12 +51,18 @@ struct StatusMonitorTests {
 
     // MARK: - Default providers
 
-    @Test("Monitor initializes with Anthropic and OpenAI providers")
+    @Test("Monitor initializes with all default providers")
     func defaultProviders() {
         let monitor = StatusMonitor()
-        #expect(monitor.providers.count == 2)
+        #expect(monitor.providers.count == 9)
         #expect(monitor.providers.contains { $0.id == "anthropic" })
         #expect(monitor.providers.contains { $0.id == "openai" })
+        #expect(monitor.providers.contains { $0.id == "google" })
+        #expect(monitor.providers.contains { $0.id == "mistral" })
+        #expect(monitor.providers.contains { $0.id == "deepseek" })
+        #expect(monitor.providers.contains { $0.id == "moonshot" })
+        #expect(monitor.providers.contains { $0.id == "openrouter" })
+        #expect(monitor.providers.contains { $0.id == "perplexity" })
     }
 
     // MARK: - Helpers
@@ -69,6 +75,7 @@ struct StatusMonitorTests {
                 shortName: "P\(index)",
                 statusURL: URL(string: "https://example.com")!,
                 apiBaseURL: URL(string: "https://example.com/api/v2")!,
+                fetcherType: .statuspage,
                 currentStatus: status,
                 lastChecked: Date(),
                 incidents: []

@@ -59,18 +59,42 @@ class StatusMonitor {
     func fetchAllStatuses() async {
         await withTaskGroup(of: (Int, ServiceStatus, [Incident]).self) { group in
             for (index, provider) in providers.enumerated() {
+                let fetcherType = provider.fetcherType
+                let baseURL = provider.apiBaseURL
                 group.addTask {
-                    async let statusResponse = StatusFetcher.fetchStatus(baseURL: provider.apiBaseURL)
-                    async let incidents = StatusFetcher.fetchIncidents(baseURL: provider.apiBaseURL)
-
                     let status: ServiceStatus
-                    if let response = await statusResponse {
-                        status = ServiceStatus(fromIndicator: response.status.indicator)
-                    } else {
-                        status = .unknown
+                    let incidents: [Incident]
+
+                    switch fetcherType {
+                    case .statuspage:
+                        async let s = StatusFetcher.fetchStatus(baseURL: baseURL)
+                        async let i = StatusFetcher.fetchIncidents(baseURL: baseURL)
+                        let response = await s
+                        status = response.map { ServiceStatus(fromIndicator: $0.status.indicator) } ?? .unknown
+                        incidents = await i
+                    case .groq:
+                        async let s = GroqFetcher.fetchStatus(baseURL: baseURL)
+                        async let i = GroqFetcher.fetchIncidents(baseURL: baseURL)
+                        status = await s
+                        incidents = await i
+                    case .google:
+                        async let s = GoogleFetcher.fetchStatus(baseURL: baseURL)
+                        async let i = GoogleFetcher.fetchIncidents(baseURL: baseURL)
+                        status = await s
+                        incidents = await i
+                    case .htmlStatus:
+                        async let s = HTMLStatusFetcher.fetchStatus(baseURL: baseURL)
+                        async let i = HTMLStatusFetcher.fetchIncidents(baseURL: baseURL)
+                        status = await s
+                        incidents = await i
+                    case .xai:
+                        async let s = XAIFetcher.fetchStatus(baseURL: baseURL)
+                        async let i = XAIFetcher.fetchIncidents(baseURL: baseURL)
+                        status = await s
+                        incidents = await i
                     }
 
-                    return (index, status, await incidents)
+                    return (index, status, incidents)
                 }
             }
 
@@ -104,6 +128,7 @@ class StatusMonitor {
                 shortName: "Claude",
                 statusURL: URL(string: "https://status.anthropic.com")!,
                 apiBaseURL: URL(string: "https://status.anthropic.com/api/v2")!,
+                fetcherType: .statuspage,
                 currentStatus: .unknown,
                 lastChecked: nil,
                 incidents: []
@@ -114,6 +139,84 @@ class StatusMonitor {
                 shortName: "OpenAI",
                 statusURL: URL(string: "https://status.openai.com")!,
                 apiBaseURL: URL(string: "https://status.openai.com/api/v2")!,
+                fetcherType: .statuspage,
+                currentStatus: .unknown,
+                lastChecked: nil,
+                incidents: []
+            ),
+            ServiceProvider(
+                id: "google",
+                name: "Google (Gemini)",
+                shortName: "Gemini",
+                statusURL: URL(string: "https://status.cloud.google.com")!,
+                apiBaseURL: URL(string: "https://status.cloud.google.com")!,
+                fetcherType: .google,
+                currentStatus: .unknown,
+                lastChecked: nil,
+                incidents: []
+            ),
+            ServiceProvider(
+                id: "mistral",
+                name: "Mistral AI",
+                shortName: "Mistral",
+                statusURL: URL(string: "https://status.mistral.ai")!,
+                apiBaseURL: URL(string: "https://status.mistral.ai")!,
+                fetcherType: .htmlStatus,
+                currentStatus: .unknown,
+                lastChecked: nil,
+                incidents: []
+            ),
+            ServiceProvider(
+                id: "deepseek",
+                name: "DeepSeek",
+                shortName: "DeepSeek",
+                statusURL: URL(string: "https://status.deepseek.com")!,
+                apiBaseURL: URL(string: "https://status.deepseek.com/api/v2")!,
+                fetcherType: .statuspage,
+                currentStatus: .unknown,
+                lastChecked: nil,
+                incidents: []
+            ),
+            ServiceProvider(
+                id: "moonshot",
+                name: "Moonshot AI",
+                shortName: "Moonshot",
+                statusURL: URL(string: "https://status.moonshot.cn")!,
+                apiBaseURL: URL(string: "https://status.moonshot.cn/api/v2")!,
+                fetcherType: .statuspage,
+                currentStatus: .unknown,
+                lastChecked: nil,
+                incidents: []
+            ),
+            ServiceProvider(
+                id: "openrouter",
+                name: "OpenRouter",
+                shortName: "OpenRouter",
+                statusURL: URL(string: "https://status.openrouter.ai")!,
+                apiBaseURL: URL(string: "https://status.openrouter.ai")!,
+                fetcherType: .htmlStatus,
+                currentStatus: .unknown,
+                lastChecked: nil,
+                incidents: []
+            ),
+            ServiceProvider(
+                id: "perplexity",
+                name: "Perplexity",
+                shortName: "Perplexity",
+                statusURL: URL(string: "https://status.perplexity.ai")!,
+                apiBaseURL: URL(string: "https://status.perplexity.ai")!,
+                fetcherType: .htmlStatus,
+                currentStatus: .unknown,
+                lastChecked: nil,
+                incidents: []
+            ),
+            ServiceProvider(
+                id: "xai",
+                name: "xAI (Grok)",
+                shortName: "Grok",
+                statusURL: URL(string: "https://status.x.ai")!,
+                apiBaseURL: URL(string: "https://status.x.ai")!,
+                fetcherType: .xai,
                 currentStatus: .unknown,
                 lastChecked: nil,
                 incidents: []
