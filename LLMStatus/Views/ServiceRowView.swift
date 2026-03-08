@@ -41,7 +41,8 @@ struct ServiceRowView: View {
                             .foregroundStyle(.secondary)
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
+                    .focusable(false)
                     .help(isExpanded ? "Hide services" : "Show services")
                 }
 
@@ -52,7 +53,8 @@ struct ServiceRowView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
+                .focusable(false)
                 .help("Open status page")
             }
 

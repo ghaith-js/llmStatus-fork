@@ -130,6 +130,7 @@ struct StatusPopoverView: View {
             }
         }
         .frame(width: 320)
+        .focusEffectDisabled()
     }
 
     static func relativeTime(from date: Date) -> String {
