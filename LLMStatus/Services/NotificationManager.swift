@@ -17,7 +17,7 @@ class NotificationManager {
     func requestPermission() async {
         guard Bundle.main.bundleIdentifier != nil else { return }
         let center = UNUserNotificationCenter.current()
-        try? await center.requestAuthorization(options: [.alert, .sound])
+        _ = try? await center.requestAuthorization(options: [.alert, .sound])
     }
 
     /// Check if we should notify for this incident (new or status changed).

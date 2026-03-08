@@ -5,7 +5,7 @@ enum FetcherType: String, Codable {
     case groq         // Groq (incident.io)
     case google       // Google Cloud (custom)
     case htmlStatus   // Mistral, OpenRouter (HTML keyword parsing)
-    case xai          // xAI (Python StealthyFetcher, cached 10min)
+    case xai          // xAI (WebKit fetcher, cached 10min)
 }
 
 struct ServiceComponent: Identifiable, Codable {
