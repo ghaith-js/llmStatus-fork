@@ -3,9 +3,18 @@ import ServiceManagement
 
 struct SettingsView: View {
     @Bindable var settings: AppSettings
+    var providers: [ServiceProvider] = []
 
     var body: some View {
         Form {
+            // Menu bar icon source
+            Picker("Menu bar icon", selection: $settings.menuBarProvider) {
+                Text("All providers").tag("all")
+                ForEach(providers) { provider in
+                    Text(provider.name).tag(provider.id)
+                }
+            }
+
             // Refresh interval
             Picker("Refresh interval", selection: $settings.refreshInterval) {
                 ForEach(AppSettings.intervalOptions, id: \.value) { option in

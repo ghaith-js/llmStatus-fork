@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum ServiceStatus: String, Codable, CaseIterable {
@@ -14,6 +15,16 @@ enum ServiceStatus: String, Codable, CaseIterable {
         case .majorOutage: .orange
         case .critical:    .red
         case .unknown:     .gray
+        }
+    }
+
+    var nsColor: NSColor {
+        switch self {
+        case .operational: .systemGreen
+        case .degraded:    .systemYellow
+        case .majorOutage: .systemOrange
+        case .critical:    .systemRed
+        case .unknown:     .systemGray
         }
     }
 

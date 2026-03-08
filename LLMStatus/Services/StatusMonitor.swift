@@ -5,6 +5,7 @@ class StatusMonitor {
     var providers: [ServiceProvider]
     let notificationManager = NotificationManager()
     var notificationsEnabled = true
+    var notifyProviderID = "all"
     private var pollingTask: Task<Void, Never>?
 
     /// Worst status across all providers (highest severity wins).
@@ -13,6 +14,22 @@ class StatusMonitor {
         return providers
             .map(\.currentStatus)
             .max(by: { $0.severity < $1.severity }) ?? .unknown
+    }
+
+    /// Status for the menu bar icon — either a specific provider or aggregated.
+    func menuBarStatus(for providerID: String) -> ServiceStatus {
+        if providerID == "all" {
+            return aggregatedStatus
+        }
+        return providers.first { $0.id == providerID }?.currentStatus ?? .unknown
+    }
+
+    /// Short label for the menu bar — provider short name or "LLM".
+    func menuBarLabel(for providerID: String) -> String {
+        if providerID == "all" {
+            return "LLM"
+        }
+        return providers.first { $0.id == providerID }?.shortName ?? "LLM"
     }
 
     init() {
@@ -62,12 +79,14 @@ class StatusMonitor {
                 providers[index].incidents = incidents
                 providers[index].lastChecked = Date()
 
-                // Notify for new/changed incidents (if enabled)
+                // Notify only for the prioritized provider (or all)
                 guard notificationsEnabled else { continue }
+                let providerID = providers[index].id
+                guard notifyProviderID == "all" || notifyProviderID == providerID else { continue }
                 for incident in incidents where incident.isActive {
                     await notificationManager.sendIncidentNotification(
                         providerName: providers[index].name,
-                        providerID: providers[index].id,
+                        providerID: providerID,
                         incident: incident
                     )
                 }
@@ -82,6 +101,7 @@ class StatusMonitor {
             ServiceProvider(
                 id: "anthropic",
                 name: "Anthropic (Claude)",
+                shortName: "Claude",
                 statusURL: URL(string: "https://status.anthropic.com")!,
                 apiBaseURL: URL(string: "https://status.anthropic.com/api/v2")!,
                 currentStatus: .unknown,
@@ -91,6 +111,7 @@ class StatusMonitor {
             ServiceProvider(
                 id: "openai",
                 name: "OpenAI",
+                shortName: "OpenAI",
                 statusURL: URL(string: "https://status.openai.com")!,
                 apiBaseURL: URL(string: "https://status.openai.com/api/v2")!,
                 currentStatus: .unknown,

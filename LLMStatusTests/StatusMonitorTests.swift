@@ -66,6 +66,7 @@ struct StatusMonitorTests {
             ServiceProvider(
                 id: "provider-\(index)",
                 name: "Provider \(index)",
+                shortName: "P\(index)",
                 statusURL: URL(string: "https://example.com")!,
                 apiBaseURL: URL(string: "https://example.com/api/v2")!,
                 currentStatus: status,

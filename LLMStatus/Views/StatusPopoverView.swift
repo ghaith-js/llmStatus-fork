@@ -29,12 +29,12 @@ struct StatusPopoverView: View {
 
                 Divider()
 
-                SettingsView(settings: settings)
+                SettingsView(settings: settings, providers: monitor.providers)
             } else {
                 // Header
                 HStack {
-                    Image(systemName: monitor.aggregatedStatus.sfSymbol)
-                        .foregroundStyle(monitor.aggregatedStatus.color)
+                    Image(systemName: monitor.menuBarStatus(for: settings.menuBarProvider).sfSymbol)
+                        .foregroundStyle(monitor.menuBarStatus(for: settings.menuBarProvider).color)
                     Text("LLM Status")
                         .font(.headline)
 
