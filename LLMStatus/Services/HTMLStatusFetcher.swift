@@ -35,8 +35,42 @@ enum HTMLStatusFetcher {
     }
 
     static func fetchIncidents(baseURL: URL) async -> [Incident] {
-        // HTML-based pages don't expose structured incident data reliably
         return []
+    }
+
+    /// Parse components from OnlineOrNot-style HTML status pages.
+    /// Pattern: <p class="...text-white">NAME</p> ... <span class="capitalize ...">STATUS</span>
+    static func fetchComponents(baseURL: URL) async -> [ServiceComponent] {
+        guard let html = await fetchHTML(baseURL: baseURL) else { return [] }
+
+        // Match: component name in <p> tag followed by status in <span> with "capitalize" class
+        // OnlineOrNot pattern: <p class="text-gray-900 dark:text-white">NAME</p> ... <span class="capitalize ...">STATUS</span>
+        var components: [ServiceComponent] = []
+        let pattern = #"<p class="text-gray-900 dark:text-white">([^<]+)</p>.*?<span class="capitalize[^"]*">(\w+)</span>"#
+
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .dotMatchesLineSeparators) else {
+            return []
+        }
+
+        let nsHTML = html as NSString
+        let matches = regex.matches(in: html, range: NSRange(location: 0, length: nsHTML.length))
+
+        for match in matches {
+            guard match.numberOfRanges == 3 else { continue }
+            let name = nsHTML.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespaces)
+            let statusStr = nsHTML.substring(with: match.range(at: 2)).lowercased()
+
+            let status: ServiceStatus = switch statusStr {
+            case "operational": .operational
+            case "degraded": .degraded
+            case "outage": .majorOutage
+            default: .unknown
+            }
+
+            components.append(ServiceComponent(id: name, name: name, status: status))
+        }
+
+        return components
     }
 
     private static func fetchHTML(baseURL: URL) async -> String? {

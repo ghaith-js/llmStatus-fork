@@ -121,9 +121,10 @@ class StatusMonitor {
                     case .htmlStatus:
                         async let s = HTMLStatusFetcher.fetchStatus(baseURL: baseURL)
                         async let i = HTMLStatusFetcher.fetchIncidents(baseURL: baseURL)
+                        async let c = HTMLStatusFetcher.fetchComponents(baseURL: baseURL)
                         status = await s
                         incidents = await i
-                        components = []
+                        components = await c
                     case .xai:
                         async let s = XAIFetcher.fetchStatus(baseURL: baseURL)
                         async let i = XAIFetcher.fetchIncidents(baseURL: baseURL)
