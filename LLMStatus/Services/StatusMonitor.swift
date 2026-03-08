@@ -6,7 +6,10 @@ class StatusMonitor {
     let notificationManager = NotificationManager()
     var notificationsEnabled = true
     var notifyProviderID = "all"
+    /// True during manual force-refresh (disables Refresh button, shows "Refreshing...")
     var isRefreshing = false
+    /// True during any fetch cycle (auto or manual) — shows spinner in footer
+    var isPolling = false
     private var pollingTask: Task<Void, Never>?
 
     /// Timestamp of the last completed fetch cycle
@@ -98,18 +101,19 @@ class StatusMonitor {
     }
 
     /// Manual refresh — invalidates caches and resets all providers to loading state
-    /// Manual refresh — invalidates caches and resets all providers to loading state
     func forceRefresh() async {
+        isRefreshing = true
         XAIFetcher.invalidateCache()
         for index in providers.indices {
             providers[index].currentStatus = .unknown
             providers[index].statusDetail = "Refreshing..."
         }
         await fetchAllStatuses()
+        isRefreshing = false
     }
 
     func fetchAllStatuses() async {
-        isRefreshing = true
+        isPolling = true
         notificationManager.purgeStaleEntries()
 
         // Show progress for slow fetchers (xAI uses a headless browser)
@@ -176,7 +180,7 @@ class StatusMonitor {
                 providers[index].incidents = incidents
                 providers[index].components = components
                 providers[index].lastChecked = Date()
-                providers[index].statusDetail = nil
+                providers[index].statusDetail = (status == .unknown) ? "Unable to fetch status" : nil
 
                 // Notify only for the prioritized provider (or all)
                 guard notificationsEnabled else { continue }
@@ -204,7 +208,7 @@ class StatusMonitor {
         }
 
         lastFullCheck = Date()
-        isRefreshing = false
+        isPolling = false
     }
 
     // MARK: - Default Providers

@@ -86,7 +86,7 @@ struct StatusPopoverView: View {
                         Task { await monitor.forceRefresh() }
                     } label: {
                         HStack(spacing: 4) {
-                            if monitor.isRefreshing {
+                            if monitor.isPolling {
                                 ProgressView()
                                     .controlSize(.mini)
                             } else {
@@ -100,9 +100,11 @@ struct StatusPopoverView: View {
                     .disabled(monitor.isRefreshing)
 
                     if let lastCheck = monitor.lastFullCheck {
-                        Text(lastCheck, style: .relative)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        TimelineView(.periodic(from: .now, by: 10)) { _ in
+                            Text(Self.relativeTime(from: lastCheck))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
 
                     Spacer()
@@ -130,4 +132,13 @@ struct StatusPopoverView: View {
         .frame(width: 320)
     }
 
+    static func relativeTime(from date: Date) -> String {
+        let seconds = Int(Date().timeIntervalSince(date))
+        if seconds < 5 { return "Just now" }
+        if seconds < 60 { return "\(seconds)s ago" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m ago" }
+        let hours = minutes / 60
+        return "\(hours)h ago"
+    }
 }
