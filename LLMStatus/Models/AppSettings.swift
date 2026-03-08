@@ -13,6 +13,8 @@ class AppSettings {
     @AppStorage("menuBarProvider") var menuBarProvider: String = "all"
     @ObservationIgnored
     @AppStorage("disabledProviders") var disabledProviders: String = ""
+    /// Triggers SwiftUI re-render when disabled providers change
+    private var disabledProvidersTick = 0
     @ObservationIgnored
     @AppStorage("providerOrder") var providerOrder: String = ""
 
@@ -27,7 +29,8 @@ class AppSettings {
     }
 
     func isProviderEnabled(_ id: String) -> Bool {
-        !disabledProviderIDs.contains(id)
+        _ = disabledProvidersTick // read to subscribe to changes
+        return !disabledProviderIDs.contains(id)
     }
 
     func toggleProvider(_ id: String) {
@@ -38,6 +41,7 @@ class AppSettings {
             ids.insert(id)
         }
         disabledProviderIDs = ids
+        disabledProvidersTick += 1 // trigger re-render
     }
 
     /// Ordered list of provider IDs (persisted)
