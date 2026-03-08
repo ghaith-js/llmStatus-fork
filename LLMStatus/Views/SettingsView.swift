@@ -35,6 +35,15 @@ struct SettingsView: View {
             // Notifications
             Toggle("Notifications enabled", isOn: $settings.notificationsEnabled)
 
+            // Logs
+            Section {
+                Button("Open logs folder") {
+                    let logsDir = FileManager.default.homeDirectoryForCurrentUser
+                        .appendingPathComponent("Library/Logs/LLMStatus")
+                    NSWorkspace.shared.open(logsDir)
+                }
+            }
+
             // App version
             Section {
                 LabeledContent("Version") {
