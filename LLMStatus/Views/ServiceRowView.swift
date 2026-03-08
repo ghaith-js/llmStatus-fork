@@ -14,19 +14,9 @@ struct ServiceRowView: View {
                     Text(provider.name)
                         .font(.headline)
 
-                    HStack(spacing: 4) {
-                        Text(provider.currentStatus.label)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        if let lastChecked = provider.lastChecked {
-                            Text("·")
-                                .foregroundStyle(.quaternary)
-                            Text(lastChecked, style: .relative)
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
+                    Text(provider.currentStatus.label)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()

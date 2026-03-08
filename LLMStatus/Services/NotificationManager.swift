@@ -8,6 +8,7 @@ class NotificationManager {
 
     /// Request notification permission from macOS.
     func requestPermission() async {
+        guard Bundle.main.bundleIdentifier != nil else { return }
         let center = UNUserNotificationCenter.current()
         try? await center.requestAuthorization(options: [.alert, .sound])
     }
@@ -39,8 +40,10 @@ class NotificationManager {
         let identifier = Self.notificationIdentifier(providerID: providerID, incidentID: incident.id)
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
 
-        let center = UNUserNotificationCenter.current()
-        try? await center.add(request)
+        if Bundle.main.bundleIdentifier != nil {
+            let center = UNUserNotificationCenter.current()
+            try? await center.add(request)
+        }
 
         markNotified(providerID: providerID, incident: incident)
     }

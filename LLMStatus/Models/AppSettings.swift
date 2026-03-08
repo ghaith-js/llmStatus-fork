@@ -3,8 +3,11 @@ import SwiftUI
 
 @Observable
 class AppSettings {
+    @ObservationIgnored
     @AppStorage("refreshInterval") var refreshInterval: TimeInterval = 300
+    @ObservationIgnored
     @AppStorage("launchAtLogin") var launchAtLogin: Bool = false
+    @ObservationIgnored
     @AppStorage("notificationsEnabled") var notificationsEnabled: Bool = true
 
     /// Human-readable interval options for the picker.

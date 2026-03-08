@@ -1,0 +1,25 @@
+# Swift
+.build/
+DerivedData/
+*.swiftpm/
+Packages/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
+*.dSYM
+
+# Xcode
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+
+# IDE
+.idea/
+.vscode/
+
+# Environment
+.env*
