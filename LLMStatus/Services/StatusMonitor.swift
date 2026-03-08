@@ -15,9 +15,11 @@ class StatusMonitor {
     /// IDs of disabled providers — synced from AppSettings
     var disabledProviderIDs: Set<String> = []
 
-    /// Only enabled providers
+    /// Only enabled providers, sorted: issues first, then operational, then unknown.
     var enabledProviders: [ServiceProvider] {
-        providers.filter { !disabledProviderIDs.contains($0.id) }
+        providers
+            .filter { !disabledProviderIDs.contains($0.id) }
+            .sorted { $0.currentStatus.severity > $1.currentStatus.severity }
     }
 
     /// Worst status across enabled providers (highest severity wins).
