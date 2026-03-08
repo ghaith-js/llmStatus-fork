@@ -13,6 +13,8 @@ struct StatusPopoverView: View {
                 HStack {
                     Button {
                         showingSettings = false
+                        // Refresh providers that may have been newly enabled
+                        Task { await monitor.refreshIfNeeded() }
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.caption.weight(.semibold))

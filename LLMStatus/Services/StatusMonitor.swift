@@ -98,6 +98,15 @@ class StatusMonitor {
         pollingTask = nil
     }
 
+    /// Refresh only if there are enabled providers with unknown status (newly enabled)
+    func refreshIfNeeded() async {
+        let needsFetch = providers.contains { provider in
+            !disabledProviderIDs.contains(provider.id) && provider.currentStatus == .unknown
+        }
+        guard needsFetch else { return }
+        await fetchAllStatuses()
+    }
+
     /// Manual refresh — invalidates caches and resets all providers to loading state
     func forceRefresh() async {
         isRefreshing = true
