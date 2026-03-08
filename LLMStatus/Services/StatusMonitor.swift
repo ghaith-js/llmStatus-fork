@@ -79,6 +79,8 @@ class StatusMonitor {
     }
 
     func fetchAllStatuses() async {
+        notificationManager.purgeStaleEntries()
+
         // Show progress for slow fetchers (xAI uses a headless browser)
         for (index, provider) in providers.enumerated() {
             if disabledProviderIDs.contains(provider.id) { continue }

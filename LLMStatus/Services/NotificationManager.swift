@@ -3,8 +3,13 @@ import UserNotifications
 
 @Observable
 class NotificationManager {
-    /// Tracks "providerID-incidentID" → last notified status
-    private var notifiedIncidents: [String: IncidentStatus] = [:]
+    private struct NotifiedEntry {
+        let status: IncidentStatus
+        let date: Date
+    }
+
+    /// Tracks "providerID-incidentID" → last notified status + timestamp
+    private var notifiedIncidents: [String: NotifiedEntry] = [:]
 
     /// Request notification permission from macOS.
     func requestPermission() async {
@@ -16,16 +21,22 @@ class NotificationManager {
     /// Check if we should notify for this incident (new or status changed).
     func shouldNotify(providerID: String, incident: Incident) -> Bool {
         let key = Self.notificationIdentifier(providerID: providerID, incidentID: incident.id)
-        guard let previousStatus = notifiedIncidents[key] else {
+        guard let entry = notifiedIncidents[key] else {
             return true // never notified
         }
-        return previousStatus != incident.status // status changed
+        return entry.status != incident.status // status changed
     }
 
     /// Mark an incident as notified with its current status.
     func markNotified(providerID: String, incident: Incident) {
         let key = Self.notificationIdentifier(providerID: providerID, incidentID: incident.id)
-        notifiedIncidents[key] = incident.status
+        notifiedIncidents[key] = NotifiedEntry(status: incident.status, date: Date())
+    }
+
+    /// Remove entries older than 24h to prevent unbounded growth.
+    func purgeStaleEntries() {
+        let cutoff = Date().addingTimeInterval(-86400)
+        notifiedIncidents = notifiedIncidents.filter { $0.value.date > cutoff }
     }
 
     /// Send a macOS notification for an incident.
