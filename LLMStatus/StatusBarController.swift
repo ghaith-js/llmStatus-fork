@@ -22,7 +22,7 @@ final class StatusBarController: NSObject {
         updateIcon()
 
         // Poll icon state — lightweight since it only redraws on change
-        iconTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        iconTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             self?.updateIcon()
         }
     }
