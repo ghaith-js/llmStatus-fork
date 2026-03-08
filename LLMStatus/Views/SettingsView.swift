@@ -3,6 +3,7 @@ import ServiceManagement
 
 struct SettingsView: View {
     @Bindable var settings: AppSettings
+    var monitor: StatusMonitor
     var providers: [ServiceProvider] = []
 
     var body: some View {
@@ -40,7 +41,10 @@ struct SettingsView: View {
                 ForEach(providers) { provider in
                     Toggle(provider.name, isOn: Binding(
                         get: { settings.isProviderEnabled(provider.id) },
-                        set: { _ in settings.toggleProvider(provider.id) }
+                        set: { _ in
+                            settings.toggleProvider(provider.id)
+                            monitor.disabledProviderIDs = settings.disabledProviderIDs
+                        }
                     ))
                 }
             }

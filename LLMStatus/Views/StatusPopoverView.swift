@@ -29,7 +29,7 @@ struct StatusPopoverView: View {
 
                 Divider()
 
-                SettingsView(settings: settings, providers: monitor.providers)
+                SettingsView(settings: settings, monitor: monitor, providers: monitor.providers)
             } else {
                 // Header
                 HStack {
