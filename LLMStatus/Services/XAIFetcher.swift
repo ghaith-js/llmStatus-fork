@@ -1,36 +1,23 @@
 import Foundation
+import WebKit
 
 private let log = FileLogger.shared
 
-/// Fetches xAI status by running a Python script that uses StealthyFetcher
-/// to bypass Cloudflare. Results are cached for 10 minutes.
+/// Fetches xAI status using a hidden WKWebView to bypass Cloudflare.
+/// Results are cached for 10 minutes.
 enum XAIFetcher {
-    private static let cacheDuration: TimeInterval = 600 // 10 minutes
+    private static let cacheDuration: TimeInterval = 600
     private static var cachedStatus: ServiceStatus?
     private static var cachedIncidents: [Incident] = []
     private static var lastFetchDate: Date?
     private static var isFetching = false
-    /// Current fetch step for UI progress display
     static var progressMessage: String?
 
-    /// Whether we have a cached result that hasn't expired
     static var hasCachedResult: Bool {
         guard let lastFetch = lastFetchDate else { return false }
         return Date().timeIntervalSince(lastFetch) < cacheDuration
     }
 
-    private struct ScriptResult: Codable {
-        let status: String
-        let incidents: [ScriptIncident]
-        let error: String?
-
-        struct ScriptIncident: Codable {
-            let id: String
-            let name: String
-        }
-    }
-
-    /// Invalidate cache so next fetch is forced
     static func invalidateCache() {
         lastFetchDate = nil
     }
@@ -46,20 +33,20 @@ enum XAIFetcher {
     }
 
     private static func refreshCacheIfNeeded() async {
-        // Return cached result if still fresh
         if let lastFetch = lastFetchDate, Date().timeIntervalSince(lastFetch) < cacheDuration {
             return
         }
-
-        // Prevent concurrent fetches
         guard !isFetching else { return }
         isFetching = true
         defer { isFetching = false }
 
-        progressMessage = "Launching browser..."
+        progressMessage = "Loading status page..."
 
-        guard let result = await runPythonScript() else {
-            log.warning("Python script returned no result", source: "XAIFetcher")
+        // WKWebView must run on main thread
+        let html = await loadPageWithWebKit(url: URL(string: "https://status.x.ai/")!)
+
+        guard let html, !html.isEmpty else {
+            log.warning("WebKit returned no HTML", source: "XAIFetcher")
             cachedStatus = .unknown
             cachedIncidents = []
             lastFetchDate = Date()
@@ -67,106 +54,127 @@ enum XAIFetcher {
             return
         }
 
-        progressMessage = "Parsing response..."
-        cachedStatus = mapStatus(result.status)
-        cachedIncidents = result.incidents.map { inc in
-            Incident(
-                id: inc.id,
-                name: inc.name,
-                impact: .major,
-                status: .investigating,
-                createdAt: Date(),
-                resolvedAt: nil,
-                shortlink: "https://status.x.ai",
-                updates: [],
-                affectedComponents: []
-            )
-        }
+        let (status, incidents) = parseHTML(html)
+        cachedStatus = status
+        cachedIncidents = incidents
         lastFetchDate = Date()
-
-        if let error = result.error {
-            log.error("xAI script error: \(error)", source: "XAIFetcher")
-        }
-
         progressMessage = nil
     }
 
-    private static func runPythonScript() async -> ScriptResult? {
-        // Find the script relative to the executable or in known locations
-        let scriptName = "fetch_xai_status.py"
-        let scriptPath = findScript(named: scriptName)
+    // MARK: - WebKit loader
 
-        guard let path = scriptPath else {
-            log.error("Cannot find \(scriptName)", source: "XAIFetcher")
-            return nil
-        }
+    @MainActor
+    private static func loadPageWithWebKit(url: URL) async -> String? {
+        await withCheckedContinuation { continuation in
+            let config = WKWebViewConfiguration()
+            let webView = WKWebView(frame: .zero, configuration: config)
 
-        return await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                let process = Process()
-                let pipe = Pipe()
+            let delegate = WebViewDelegate { html in
+                continuation.resume(returning: html)
+            }
+            webView.navigationDelegate = delegate
 
-                // Use the venv python if available, otherwise system python3
-                let venvPython = "/tmp/scrapling-test/bin/python3"
-                if FileManager.default.fileExists(atPath: venvPython) {
-                    process.executableURL = URL(fileURLWithPath: venvPython)
-                } else {
-                    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-                    process.arguments = ["python3"]
-                }
+            // Prevent delegate from being deallocated
+            objc_setAssociatedObject(webView, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
 
-                if process.executableURL?.lastPathComponent == "env" {
-                    process.arguments = ["python3", path]
-                } else {
-                    process.arguments = [path]
-                }
+            webView.load(URLRequest(url: url))
 
-                process.standardOutput = pipe
-                process.standardError = FileHandle.nullDevice
-
-                do {
-                    try process.run()
-                    process.waitUntilExit()
-
-                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                    let result = try JSONDecoder().decode(ScriptResult.self, from: data)
-                    continuation.resume(returning: result)
-                } catch {
-                    log.error("Failed to run Python script: \(error.localizedDescription)", source: "XAIFetcher")
+            // Timeout after 30s
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
+                if !delegate.didFinish {
+                    log.warning("WebKit timeout after 30s", source: "XAIFetcher")
+                    delegate.didFinish = true
                     continuation.resume(returning: nil)
                 }
             }
         }
     }
 
-    private static func findScript(named name: String) -> String? {
-        // Check relative to the executable
-        let execURL = Bundle.main.executableURL?.deletingLastPathComponent()
-        var candidates: [String] = []
-        if let execURL {
-            candidates.append(execURL.appendingPathComponent("../../../scripts/\(name)").path)
-            candidates.append(execURL.appendingPathComponent("../../scripts/\(name)").path)
-            candidates.append(execURL.appendingPathComponent("scripts/\(name)").path)
-        }
-        candidates.append(FileManager.default.currentDirectoryPath + "/scripts/\(name)")
-        candidates.append(Bundle.main.bundlePath + "/Contents/Resources/scripts/\(name)")
+    // MARK: - HTML parsing
 
-        for path in candidates {
-            let resolved = (path as NSString).standardizingPath
-            if FileManager.default.fileExists(atPath: resolved) {
-                return resolved
+    private static func parseHTML(_ html: String) -> (ServiceStatus, [Incident]) {
+        let lower = html.lowercased()
+
+        let status: ServiceStatus
+        if lower.contains("no incidents declared") || lower.contains("no known incidents") {
+            status = .operational
+        } else if lower.contains("major outage") || lower.contains("major_outage") {
+            status = .critical
+        } else if lower.contains("degraded") || lower.contains("partial outage") {
+            status = .degraded
+        } else if lower.contains("incidents declared") {
+            status = .degraded
+        } else {
+            status = .unknown
+        }
+
+        var incidents: [Incident] = []
+        if status != .operational {
+            let pattern = #"heading-3["\s>]+([^<]+)"#
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                let matches = regex.matches(in: html, range: NSRange(html.startIndex..., in: html))
+                for match in matches {
+                    if let range = Range(match.range(at: 1), in: html) {
+                        let name = String(html[range]).trimmingCharacters(in: .whitespaces)
+                        guard !name.isEmpty, !name.contains("No incidents") else { continue }
+                        incidents.append(Incident(
+                            id: String(name.prefix(32)),
+                            name: name,
+                            impact: .major,
+                            status: .investigating,
+                            createdAt: Date(),
+                            resolvedAt: nil,
+                            shortlink: "https://status.x.ai",
+                            updates: [],
+                            affectedComponents: []
+                        ))
+                    }
+                }
             }
         }
-        return nil
+
+        return (status, incidents)
+    }
+}
+
+// MARK: - WKNavigationDelegate
+
+private class WebViewDelegate: NSObject, WKNavigationDelegate {
+    let completion: (String?) -> Void
+    var didFinish = false
+
+    init(completion: @escaping (String?) -> Void) {
+        self.completion = completion
     }
 
-    private static func mapStatus(_ status: String) -> ServiceStatus {
-        switch status {
-        case "operational": .operational
-        case "degraded": .degraded
-        case "majorOutage": .majorOutage
-        case "critical": .critical
-        default: .unknown
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // Wait for Cloudflare JS challenge to resolve
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self, !self.didFinish else { return }
+            webView.evaluateJavaScript("document.documentElement.outerHTML") { result, error in
+                guard !self.didFinish else { return }
+                self.didFinish = true
+                if let html = result as? String {
+                    self.completion(html)
+                } else {
+                    FileLogger.shared.error("JS eval failed: \(error?.localizedDescription ?? "unknown")", source: "XAIFetcher")
+                    self.completion(nil)
+                }
+            }
         }
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        guard !didFinish else { return }
+        didFinish = true
+        FileLogger.shared.error("WebKit navigation failed: \(error.localizedDescription)", source: "XAIFetcher")
+        completion(nil)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        guard !didFinish else { return }
+        didFinish = true
+        FileLogger.shared.error("WebKit provisional failed: \(error.localizedDescription)", source: "XAIFetcher")
+        completion(nil)
     }
 }
