@@ -13,6 +13,8 @@ class AppSettings {
     @AppStorage("menuBarProvider") var menuBarProvider: String = "all"
     @ObservationIgnored
     @AppStorage("disabledProviders") var disabledProviders: String = ""
+    @ObservationIgnored
+    @AppStorage("providerOrder") var providerOrder: String = ""
 
     /// IDs of providers the user has disabled
     var disabledProviderIDs: Set<String> {
@@ -36,6 +38,17 @@ class AppSettings {
             ids.insert(id)
         }
         disabledProviderIDs = ids
+    }
+
+    /// Ordered list of provider IDs (persisted)
+    var providerOrderIDs: [String] {
+        get {
+            let ids = providerOrder.split(separator: ",").map(String.init)
+            return ids.isEmpty ? [] : ids
+        }
+        set {
+            providerOrder = newValue.joined(separator: ",")
+        }
     }
 
     /// Human-readable interval options for the picker.

@@ -22,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor.notificationsEnabled = settings.notificationsEnabled
         monitor.notifyProviderID = settings.menuBarProvider
         monitor.disabledProviderIDs = settings.disabledProviderIDs
+        if !settings.providerOrderIDs.isEmpty {
+            monitor.reorderProviders(orderedIDs: settings.providerOrderIDs)
+        }
         monitor.startPolling(interval: settings.refreshInterval)
         network.start()
 

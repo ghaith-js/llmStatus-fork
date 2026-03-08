@@ -15,11 +15,28 @@ class StatusMonitor {
     /// IDs of disabled providers — synced from AppSettings
     var disabledProviderIDs: Set<String> = []
 
-    /// Only enabled providers, sorted: issues first, then operational, then unknown.
+    /// Custom display order (provider IDs). Empty = default order.
+    var providerOrderIDs: [String] = []
+
+    /// Only enabled providers, respecting custom order with issues bumped to top.
     var enabledProviders: [ServiceProvider] {
-        providers
-            .filter { !disabledProviderIDs.contains($0.id) }
-            .sorted { $0.currentStatus.severity > $1.currentStatus.severity }
+        let enabled = providers.filter { !disabledProviderIDs.contains($0.id) }
+
+        // Apply custom order if set
+        let ordered: [ServiceProvider]
+        if providerOrderIDs.isEmpty {
+            ordered = enabled
+        } else {
+            let lookup = Dictionary(uniqueKeysWithValues: enabled.map { ($0.id, $0) })
+            let fromOrder = providerOrderIDs.compactMap { lookup[$0] }
+            let remaining = enabled.filter { p in !providerOrderIDs.contains(p.id) }
+            ordered = fromOrder + remaining
+        }
+
+        // Stable partition: issues first, then the rest in custom order
+        let withIssues = ordered.filter { $0.currentStatus.severity >= 2 }
+        let rest = ordered.filter { $0.currentStatus.severity < 2 }
+        return withIssues + rest
     }
 
     /// Worst status across enabled providers (highest severity wins).
@@ -49,6 +66,15 @@ class StatusMonitor {
 
     init() {
         self.providers = Self.defaultProviders()
+    }
+
+    /// Reorder the providers array to match the given ID order.
+    func reorderProviders(orderedIDs: [String]) {
+        providerOrderIDs = orderedIDs
+        let lookup = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0) })
+        let reordered = orderedIDs.compactMap { lookup[$0] }
+        let remaining = providers.filter { p in !orderedIDs.contains(p.id) }
+        providers = reordered + remaining
     }
 
     // MARK: - Polling
