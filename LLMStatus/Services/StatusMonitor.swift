@@ -87,7 +87,7 @@ class StatusMonitor {
             }
         }
 
-        await withTaskGroup(of: (Int, ServiceStatus, [Incident]).self) { group in
+        await withTaskGroup(of: (Int, ServiceStatus, [Incident], [ServiceComponent]).self) { group in
             for (index, provider) in providers.enumerated() {
                 guard !disabledProviderIDs.contains(provider.id) else { continue }
                 let fetcherType = provider.fetcherType
@@ -95,43 +95,51 @@ class StatusMonitor {
                 group.addTask {
                     let status: ServiceStatus
                     let incidents: [Incident]
+                    let components: [ServiceComponent]
 
                     switch fetcherType {
                     case .statuspage:
                         async let s = StatusFetcher.fetchStatus(baseURL: baseURL)
                         async let i = StatusFetcher.fetchIncidents(baseURL: baseURL)
+                        async let c = StatusFetcher.fetchComponents(baseURL: baseURL)
                         let response = await s
                         status = response.map { ServiceStatus(fromIndicator: $0.status.indicator) } ?? .unknown
                         incidents = await i
+                        components = await c
                     case .groq:
                         async let s = GroqFetcher.fetchStatus(baseURL: baseURL)
                         async let i = GroqFetcher.fetchIncidents(baseURL: baseURL)
                         status = await s
                         incidents = await i
+                        components = []
                     case .google:
                         async let s = GoogleFetcher.fetchStatus(baseURL: baseURL)
                         async let i = GoogleFetcher.fetchIncidents(baseURL: baseURL)
                         status = await s
                         incidents = await i
+                        components = []
                     case .htmlStatus:
                         async let s = HTMLStatusFetcher.fetchStatus(baseURL: baseURL)
                         async let i = HTMLStatusFetcher.fetchIncidents(baseURL: baseURL)
                         status = await s
                         incidents = await i
+                        components = []
                     case .xai:
                         async let s = XAIFetcher.fetchStatus(baseURL: baseURL)
                         async let i = XAIFetcher.fetchIncidents(baseURL: baseURL)
                         status = await s
                         incidents = await i
+                        components = []
                     }
 
-                    return (index, status, incidents)
+                    return (index, status, incidents, components)
                 }
             }
 
-            for await (index, status, incidents) in group {
+            for await (index, status, incidents, components) in group {
                 providers[index].currentStatus = status
                 providers[index].incidents = incidents
+                providers[index].components = components
                 providers[index].lastChecked = Date()
                 providers[index].statusDetail = nil
 

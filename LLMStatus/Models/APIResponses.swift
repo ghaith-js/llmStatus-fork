@@ -17,6 +17,33 @@ struct StatusResponse: Codable {
     }
 }
 
+/// DTO for /api/v2/components.json
+struct ComponentsResponse: Codable {
+    let components: [ComponentDTO]
+
+    struct ComponentDTO: Codable {
+        let id: String
+        let name: String
+        let status: String
+        let groupId: String?
+        let group: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case id, name, status
+            case groupId = "group_id"
+            case group
+        }
+
+        func toServiceComponent() -> ServiceComponent {
+            ServiceComponent(
+                id: id,
+                name: name,
+                status: ServiceStatus(fromComponentStatus: status)
+            )
+        }
+    }
+}
+
 /// DTO for /api/v2/incidents/unresolved.json
 struct IncidentsResponse: Codable {
     let incidents: [IncidentDTO]

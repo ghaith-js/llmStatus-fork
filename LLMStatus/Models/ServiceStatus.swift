@@ -59,6 +59,18 @@ enum ServiceStatus: String, Codable, CaseIterable {
         }
     }
 
+    /// Maps Statuspage component `status` field to our enum.
+    init(fromComponentStatus status: String) {
+        switch status {
+        case "operational":           self = .operational
+        case "degraded_performance":  self = .degraded
+        case "partial_outage":        self = .majorOutage
+        case "major_outage":          self = .critical
+        case "under_maintenance":     self = .degraded
+        default:                      self = .unknown
+        }
+    }
+
     /// Severity rank for aggregation (higher = worse).
     var severity: Int {
         switch self {

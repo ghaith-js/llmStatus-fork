@@ -2,6 +2,9 @@ import SwiftUI
 
 struct ServiceRowView: View {
     let provider: ServiceProvider
+    @State private var isExpanded = false
+
+    private var hasComponents: Bool { !provider.components.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -27,6 +30,21 @@ struct ServiceRowView: View {
 
                 Spacer()
 
+                if hasComponents {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                    .buttonStyle(.borderless)
+                    .help(isExpanded ? "Hide services" : "Show services")
+                }
+
                 Button {
                     NSWorkspace.shared.open(provider.statusURL)
                 } label: {
@@ -36,6 +54,31 @@ struct ServiceRowView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Open status page")
+            }
+
+            // Components (collapsible)
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(provider.components) { component in
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(component.status.color)
+                                .frame(width: 6, height: 6)
+
+                            Text(component.name)
+                                .font(.caption)
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            Text(component.status.label)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.leading, 28)
+                .padding(.top, 2)
             }
 
             // Active incidents

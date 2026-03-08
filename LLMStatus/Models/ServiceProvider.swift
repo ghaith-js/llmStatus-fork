@@ -8,6 +8,12 @@ enum FetcherType: String, Codable {
     case xai          // xAI (Python StealthyFetcher, cached 10min)
 }
 
+struct ServiceComponent: Identifiable, Codable {
+    let id: String
+    let name: String
+    var status: ServiceStatus
+}
+
 struct ServiceProvider: Identifiable, Codable {
     let id: String
     let name: String
@@ -19,4 +25,5 @@ struct ServiceProvider: Identifiable, Codable {
     var lastChecked: Date?
     var incidents: [Incident]
     var statusDetail: String?
+    var components: [ServiceComponent] = []
 }
