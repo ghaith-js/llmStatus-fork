@@ -9,10 +9,11 @@ struct MenuBarIconView: View {
         if let url = Bundle.module.url(forResource: "MenuBarIcon", withExtension: "pdf"),
            let nsImage = NSImage(contentsOf: url) {
             Image(nsImage: nsImage)
+                .renderingMode(.template)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(height: size)
-                .colorMultiply(status.color)
+                .foregroundStyle(status.color)
         } else {
             Image(systemName: status.sfSymbol)
                 .foregroundStyle(status.color)
