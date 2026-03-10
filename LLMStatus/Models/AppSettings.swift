@@ -17,6 +17,9 @@ class AppSettings {
     private var disabledProvidersTick = 0
     @ObservationIgnored
     @AppStorage("providerOrder") var providerOrder: String = ""
+    @ObservationIgnored
+    @AppStorage("watchedComponents") var watchedComponents: String = ""
+    private var watchedComponentsTick = 0
 
     /// IDs of providers the user has disabled
     var disabledProviderIDs: Set<String> {
@@ -53,6 +56,39 @@ class AppSettings {
         set {
             providerOrder = newValue.joined(separator: ",")
         }
+    }
+
+    // MARK: - Watched components per provider
+
+    /// Get the watched component name for a provider ("all" = overall status)
+    func watchedComponent(for providerID: String) -> String {
+        _ = watchedComponentsTick
+        let map = parseWatchedComponents()
+        return map[providerID] ?? "all"
+    }
+
+    /// Set the watched component for a provider
+    func setWatchedComponent(_ componentName: String, for providerID: String) {
+        var map = parseWatchedComponents()
+        if componentName == "all" {
+            map.removeValue(forKey: providerID)
+        } else {
+            map[providerID] = componentName
+        }
+        watchedComponents = map.map { "\($0.key):\($0.value)" }.sorted().joined(separator: ",")
+        watchedComponentsTick += 1
+    }
+
+    private func parseWatchedComponents() -> [String: String] {
+        guard !watchedComponents.isEmpty else { return [:] }
+        var map: [String: String] = [:]
+        for entry in watchedComponents.split(separator: ",") {
+            let parts = entry.split(separator: ":", maxSplits: 1)
+            if parts.count == 2 {
+                map[String(parts[0])] = String(parts[1])
+            }
+        }
+        return map
     }
 
     /// Human-readable interval options for the picker.

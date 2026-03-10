@@ -68,6 +68,25 @@ struct SettingsView: View {
                 .scrollDisabled(true)
             }
 
+            // Watched component per provider
+            Section("Focus component") {
+                ForEach(orderedProviders.filter { settings.isProviderEnabled($0.id) && !$0.components.isEmpty }) { provider in
+                    Picker(provider.shortName, selection: Binding(
+                        get: { settings.watchedComponent(for: provider.id) },
+                        set: { newValue in
+                            settings.setWatchedComponent(newValue, for: provider.id)
+                            monitor.watchedComponentMap = buildWatchedMap()
+                        }
+                    )) {
+                        Text("All").tag("all")
+                        ForEach(allComponentNames(for: provider), id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
+
             // Logs
             Section {
                 Button("Open logs folder") {
@@ -88,6 +107,31 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .onAppear {
             orderedProviders = monitor.orderedProviders(by: settings.providerOrderIDs)
+            monitor.watchedComponentMap = buildWatchedMap()
         }
+    }
+
+    /// Flat list of component names (groups + children) for a provider
+    private func allComponentNames(for provider: ServiceProvider) -> [String] {
+        var names: [String] = []
+        for component in provider.components {
+            names.append(component.name)
+            for child in component.children {
+                names.append(child.name)
+            }
+        }
+        return names
+    }
+
+    /// Build the watched component map from settings
+    private func buildWatchedMap() -> [String: String] {
+        var map: [String: String] = [:]
+        for provider in orderedProviders {
+            let watched = settings.watchedComponent(for: provider.id)
+            if watched != "all" {
+                map[provider.id] = watched
+            }
+        }
+        return map
     }
 }

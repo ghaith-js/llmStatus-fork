@@ -21,6 +21,9 @@ class StatusMonitor {
     /// Custom display order (provider IDs). Empty = default order.
     var providerOrderIDs: [String] = []
 
+    /// Watched component name per provider. If set, provider status = component status.
+    var watchedComponentMap: [String: String] = [:]
+
     /// Only enabled providers, respecting custom order with issues bumped to top.
     var enabledProviders: [ServiceProvider] {
         let enabled = providers.filter { !disabledProviderIDs.contains($0.id) }
@@ -183,26 +186,35 @@ class StatusMonitor {
 
             for await (index, status, incidents, components) in group {
                 let previousStatus = providers[index].currentStatus
-                providers[index].currentStatus = status
                 providers[index].incidents = incidents
                 providers[index].components = components
                 providers[index].lastChecked = Date()
-                providers[index].statusDetail = (status == .unknown) ? "Unable to fetch status" : nil
+
+                // If a watched component is set, use its status instead of overall
+                let providerID = providers[index].id
+                let effectiveStatus: ServiceStatus
+                if let watchedName = watchedComponentMap[providerID],
+                   let componentStatus = findComponentStatus(named: watchedName, in: components) {
+                    effectiveStatus = componentStatus
+                } else {
+                    effectiveStatus = status
+                }
+                providers[index].currentStatus = effectiveStatus
+                providers[index].statusDetail = (effectiveStatus == .unknown) ? "Unable to fetch status" : nil
 
                 // Notify only for the prioritized provider (or all)
                 guard notificationsEnabled else { continue }
-                let providerID = providers[index].id
                 guard notifyProviderID == "all" || notifyProviderID == providerID else { continue }
 
                 // Recovery notification: was degraded/outage, now operational
-                if status == .operational
+                if effectiveStatus == .operational
                     && previousStatus != .operational
                     && previousStatus != .unknown {
                     await notificationManager.sendRecoveryNotification(
                         providerName: providers[index].name,
                         providerID: providerID
                     )
-                } else if status != .operational && status != .unknown {
+                } else if effectiveStatus != .operational && effectiveStatus != .unknown {
                     // Provider went down — reset recovery tracking so next recovery triggers
                     notificationManager.clearRecovery(providerID: providerID)
                 }
@@ -219,6 +231,27 @@ class StatusMonitor {
 
         lastFullCheck = Date()
         isPolling = false
+    }
+
+    /// Find a component's status by name, searching in groups and flat components.
+    private func findComponentStatus(named name: String, in components: [ServiceComponent]) -> ServiceStatus? {
+        // Check groups first (e.g. "APIs" group → worst status of children)
+        for component in components {
+            if component.isGroup && component.name == name {
+                return component.status
+            }
+            // Check children inside groups
+            if component.isGroup {
+                if let child = component.children.first(where: { $0.name == name }) {
+                    return child.status
+                }
+            }
+            // Check flat components
+            if component.name == name {
+                return component.status
+            }
+        }
+        return nil
     }
 
     // MARK: - Default Providers
