@@ -21,7 +21,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         monitor.notificationsEnabled = settings.notificationsEnabled
         monitor.notifyProviderID = settings.menuBarProvider
+
+        // Request notification permission on first launch
+        Task { await monitor.notificationManager.requestPermission() }
         monitor.disabledProviderIDs = settings.disabledProviderIDs
+
+        // Restore watched components from persisted settings
+        let watchedMap = settings.watchedComponents
+        if !watchedMap.isEmpty {
+            var map: [String: String] = [:]
+            for entry in watchedMap.split(separator: ",") {
+                let parts = entry.split(separator: ":", maxSplits: 1)
+                if parts.count == 2 { map[String(parts[0])] = String(parts[1]) }
+            }
+            monitor.watchedComponentMap = map
+        }
+
         if !settings.providerOrderIDs.isEmpty {
             monitor.reorderProviders(orderedIDs: settings.providerOrderIDs)
         }
