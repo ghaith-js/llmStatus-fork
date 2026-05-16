@@ -197,7 +197,7 @@ class StatusMonitor {
                    let componentStatus = findComponentStatus(named: watchedName, in: components) {
                     effectiveStatus = componentStatus
                 } else {
-                    effectiveStatus = status
+                    effectiveStatus = Self.elevateStatus(status, withActiveIncidents: incidents)
                 }
                 providers[index].currentStatus = effectiveStatus
                 providers[index].statusDetail = (effectiveStatus == .unknown) ? "Unable to fetch status" : nil
@@ -231,6 +231,23 @@ class StatusMonitor {
 
         lastFullCheck = Date()
         isPolling = false
+    }
+
+    /// Elevate a reported provider status when active incidents are present.
+    /// Some status pages (e.g. OpenAI) clear the global indicator while an incident
+    /// is still in `monitoring`, leaving the app green despite a visible problem.
+    static func elevateStatus(_ reported: ServiceStatus, withActiveIncidents incidents: [Incident]) -> ServiceStatus {
+        let active = incidents.filter(\.isActive)
+        guard !active.isEmpty else { return reported }
+        let fromIncidents: ServiceStatus = active.map { incident -> ServiceStatus in
+            switch incident.impact {
+            case .critical: .critical
+            case .major:    .majorOutage
+            case .minor:    .degraded
+            case .none:     .degraded
+            }
+        }.max(by: { $0.severity < $1.severity }) ?? reported
+        return [reported, fromIncidents].max(by: { $0.severity < $1.severity }) ?? reported
     }
 
     /// Find a component's status by name, searching in groups and flat components.

@@ -74,12 +74,15 @@ struct IncidentsResponse: Codable {
 
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let fallback = ISO8601DateFormatter()
+            fallback.formatOptions = [.withInternetDateTime]
+            func parse(_ s: String) -> Date? { formatter.date(from: s) ?? fallback.date(from: s) }
 
-            guard let created = formatter.date(from: createdAt) else {
+            guard let created = parse(createdAt) else {
                 return nil
             }
 
-            let resolved = resolvedAt.flatMap { formatter.date(from: $0) }
+            let resolved = resolvedAt.flatMap { parse($0) }
             let updates = (incidentUpdates ?? []).compactMap { $0.toIncidentUpdate() }
 
             return Incident(
@@ -114,8 +117,11 @@ struct IncidentsResponse: Codable {
 
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let fallback = ISO8601DateFormatter()
+            fallback.formatOptions = [.withInternetDateTime]
+            func parse(_ s: String) -> Date? { formatter.date(from: s) ?? fallback.date(from: s) }
 
-            guard let created = formatter.date(from: createdAt) else {
+            guard let created = parse(createdAt) else {
                 return nil
             }
 
