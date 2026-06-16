@@ -2,7 +2,8 @@ APP_NAME = LLM Status
 BUNDLE_NAME = LLMStatus.app
 EXECUTABLE = LLMStatus
 BUILD_DIR = .build/release
-BUNDLE_DIR = build/$(BUNDLE_NAME)
+BUNDLE_DIR = .build/app/$(BUNDLE_NAME)
+LEGACY_BUNDLE_DIR = build/$(BUNDLE_NAME)
 IDENTITY ?= -
 
 .PHONY: all build bundle sign clean run
@@ -13,7 +14,8 @@ build:
 	swift build -c release
 
 bundle: build
-	@rm -rf build/$(BUNDLE_NAME)
+	@if [ -d "$(BUNDLE_DIR)" ]; then trash "$(BUNDLE_DIR)"; fi
+	@if [ -d "$(LEGACY_BUNDLE_DIR)" ]; then trash "$(LEGACY_BUNDLE_DIR)"; fi
 	@mkdir -p $(BUNDLE_DIR)/Contents/MacOS
 	@mkdir -p $(BUNDLE_DIR)/Contents/Resources
 	@cp $(BUILD_DIR)/$(EXECUTABLE) $(BUNDLE_DIR)/Contents/MacOS/
@@ -21,7 +23,7 @@ bundle: build
 	@cp LLMStatus/Resources/AppIcon.icns $(BUNDLE_DIR)/Contents/Resources/
 	@# Copy SPM resource bundle (contains MenuBarIcon.pdf etc.)
 	@cp -R $(BUILD_DIR)/LLMStatus_LLMStatus.bundle $(BUNDLE_DIR)/Contents/Resources/
-	@echo "✓ Bundle created at build/$(BUNDLE_NAME)"
+	@echo "✓ Bundle created at $(BUNDLE_DIR)"
 
 sign: bundle
 	codesign --deep --force --sign "$(IDENTITY)" \
@@ -31,9 +33,10 @@ sign: bundle
 	@echo "✓ Signed with identity: $(IDENTITY)"
 
 run: all
-	@open build/$(BUNDLE_NAME)
+	@open $(BUNDLE_DIR)
 
 clean:
-	@rm -rf build/
+	@if [ -d ".build/app" ]; then trash ".build/app"; fi
+	@if [ -d "build" ]; then trash "build"; fi
 	swift package clean
 	@echo "✓ Cleaned"

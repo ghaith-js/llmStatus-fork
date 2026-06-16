@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let monitor = StatusMonitor()
         let network = NetworkMonitor()
 
+        settings.reconcileLaunchAtLogin()
+
         monitor.notificationsEnabled = settings.notificationsEnabled
         monitor.notifyProviderID = settings.menuBarProvider
 

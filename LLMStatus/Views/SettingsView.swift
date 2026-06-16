@@ -1,5 +1,4 @@
 import SwiftUI
-import ServiceManagement
 
 struct SettingsView: View {
     @Bindable var settings: AppSettings
@@ -25,13 +24,12 @@ struct SettingsView: View {
 
             // Launch at login
             Toggle("Launch at login", isOn: $settings.launchAtLogin)
-                .onChange(of: settings.launchAtLogin) { _, enabled in
-                    if enabled {
-                        try? SMAppService.mainApp.register()
-                    } else {
-                        try? SMAppService.mainApp.unregister()
-                    }
-                }
+
+            if let message = settings.launchAtLoginStatusMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             // Notifications
             Toggle("Notifications enabled", isOn: $settings.notificationsEnabled)
@@ -106,6 +104,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear {
+            settings.refreshLaunchAtLoginStatus()
             orderedProviders = monitor.orderedProviders(by: settings.providerOrderIDs)
             monitor.watchedComponentMap = buildWatchedMap()
         }

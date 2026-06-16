@@ -1,4 +1,5 @@
 import Foundation
+import ServiceManagement
 import SwiftUI
 
 @Observable
@@ -6,7 +7,9 @@ class AppSettings {
     @ObservationIgnored
     @AppStorage("refreshInterval") var refreshInterval: TimeInterval = 60
     @ObservationIgnored
-    @AppStorage("launchAtLogin") var launchAtLogin: Bool = false
+    @AppStorage("launchAtLogin") private var launchAtLoginPreference: Bool = false
+    private var launchAtLoginTick = 0
+    var launchAtLoginStatusMessage: String?
     @ObservationIgnored
     @AppStorage("notificationsEnabled") var notificationsEnabled: Bool = true
     @ObservationIgnored
@@ -20,6 +23,73 @@ class AppSettings {
     @ObservationIgnored
     @AppStorage("watchedComponents") var watchedComponents: String = ""
     private var watchedComponentsTick = 0
+
+    var launchAtLogin: Bool {
+        get {
+            _ = launchAtLoginTick
+            return SMAppService.mainApp.status == .enabled
+        }
+        set {
+            setLaunchAtLogin(newValue)
+        }
+    }
+
+    func reconcileLaunchAtLogin() {
+        let status = SMAppService.mainApp.status
+        if launchAtLoginPreference, status == .notRegistered || status == .notFound {
+            setLaunchAtLogin(true)
+        } else {
+            updateLaunchAtLoginStatusMessage()
+        }
+    }
+
+    func refreshLaunchAtLoginStatus() {
+        updateLaunchAtLoginStatusMessage()
+        launchAtLoginTick += 1
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                if SMAppService.mainApp.status != .enabled {
+                    try SMAppService.mainApp.register()
+                }
+                launchAtLoginPreference = true
+            } else {
+                if SMAppService.mainApp.status != .notRegistered {
+                    try SMAppService.mainApp.unregister()
+                }
+                launchAtLoginPreference = false
+            }
+        } catch {
+            launchAtLoginStatusMessage = "Launch at login could not be updated: \(error.localizedDescription)"
+            if enabled {
+                launchAtLoginPreference = false
+            }
+            launchAtLoginTick += 1
+            return
+        }
+
+        updateLaunchAtLoginStatusMessage()
+        launchAtLoginTick += 1
+    }
+
+    private func updateLaunchAtLoginStatusMessage() {
+        switch SMAppService.mainApp.status {
+        case .enabled:
+            launchAtLoginStatusMessage = nil
+        case .notRegistered:
+            launchAtLoginStatusMessage = launchAtLoginPreference
+                ? "Launch at login is not registered with macOS."
+                : nil
+        case .requiresApproval:
+            launchAtLoginStatusMessage = "Approve LLM Status in System Settings > General > Login Items."
+        case .notFound:
+            launchAtLoginStatusMessage = "macOS could not find this app bundle for login items."
+        @unknown default:
+            launchAtLoginStatusMessage = "macOS returned an unknown login item status."
+        }
+    }
 
     /// IDs of providers the user has disabled
     var disabledProviderIDs: Set<String> {
