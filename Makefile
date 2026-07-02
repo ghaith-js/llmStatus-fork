@@ -1,7 +1,8 @@
 APP_NAME = LLM Status
 BUNDLE_NAME = LLMStatus.app
 EXECUTABLE = LLMStatus
-BUILD_DIR = .build/release
+NATIVE_ARCH := $(shell if [ "$$(sysctl -in hw.optional.arm64 2>/dev/null || echo 0)" = "1" ]; then echo arm64; else uname -m; fi)
+BUILD_DIR = .build/$(NATIVE_ARCH)-apple-macosx/release
 BUNDLE_DIR = .build/app/$(BUNDLE_NAME)
 LEGACY_BUNDLE_DIR = build/$(BUNDLE_NAME)
 IDENTITY ?= -
@@ -11,7 +12,7 @@ IDENTITY ?= -
 all: bundle sign
 
 build:
-	swift build -c release
+	swift build -c release --arch $(NATIVE_ARCH)
 
 bundle: build
 	@if [ -d "$(BUNDLE_DIR)" ]; then trash "$(BUNDLE_DIR)"; fi
@@ -19,6 +20,7 @@ bundle: build
 	@mkdir -p $(BUNDLE_DIR)/Contents/MacOS
 	@mkdir -p $(BUNDLE_DIR)/Contents/Resources
 	@cp $(BUILD_DIR)/$(EXECUTABLE) $(BUNDLE_DIR)/Contents/MacOS/
+	@lipo -archs $(BUNDLE_DIR)/Contents/MacOS/$(EXECUTABLE) | tr ' ' '\n' | grep -qx "$(NATIVE_ARCH)" || (file $(BUNDLE_DIR)/Contents/MacOS/$(EXECUTABLE); exit 1)
 	@cp Info.plist $(BUNDLE_DIR)/Contents/
 	@cp LLMStatus/Resources/AppIcon.icns $(BUNDLE_DIR)/Contents/Resources/
 	@# Copy SPM resource bundle (contains MenuBarIcon.pdf etc.)
