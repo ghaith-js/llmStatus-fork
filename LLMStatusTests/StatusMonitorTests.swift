@@ -54,15 +54,17 @@ struct StatusMonitorTests {
     @Test("Monitor initializes with all default providers")
     func defaultProviders() {
         let monitor = StatusMonitor()
-        #expect(monitor.providers.count == 9)
+        #expect(monitor.providers.count == 10)
         #expect(monitor.providers.contains { $0.id == "anthropic" })
         #expect(monitor.providers.contains { $0.id == "openai" })
+        #expect(monitor.providers.contains { $0.id == "cursor" })
         #expect(monitor.providers.contains { $0.id == "google" })
         #expect(monitor.providers.contains { $0.id == "mistral" })
         #expect(monitor.providers.contains { $0.id == "deepseek" })
         #expect(monitor.providers.contains { $0.id == "moonshot" })
         #expect(monitor.providers.contains { $0.id == "openrouter" })
         #expect(monitor.providers.contains { $0.id == "perplexity" })
+        #expect(monitor.providers.contains { $0.id == "xai" })
     }
 
     // MARK: - Helpers

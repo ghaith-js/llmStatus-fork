@@ -1,7 +1,7 @@
 import Foundation
 
 enum FetcherType: String, Codable {
-    case statuspage   // Anthropic, OpenAI, Moonshot, DeepSeek (Atlassian Statuspage API)
+    case statuspage   // Anthropic, OpenAI, Cursor, Moonshot, DeepSeek (Atlassian Statuspage API)
     case groq         // Groq (incident.io)
     case google       // Google Cloud (custom)
     case htmlStatus   // Mistral, OpenRouter (HTML keyword parsing)

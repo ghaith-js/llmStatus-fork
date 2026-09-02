@@ -1,6 +1,6 @@
 import Foundation
 
-/// Fetcher for Atlassian Statuspage API (Anthropic, OpenAI, DeepSeek, Moonshot).
+/// Fetcher for Atlassian Statuspage API (Anthropic, OpenAI, Cursor, DeepSeek, Moonshot).
 enum StatusFetcher {
     static func fetchStatus(baseURL: URL) async -> StatusResponse? {
         guard let data = await HTTPClient.fetch(

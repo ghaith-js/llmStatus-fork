@@ -298,6 +298,17 @@ class StatusMonitor {
                 incidents: []
             ),
             ServiceProvider(
+                id: "cursor",
+                name: "Cursor",
+                shortName: "Cursor",
+                statusURL: URL(string: "https://status.cursor.com")!,
+                apiBaseURL: URL(string: "https://status.cursor.com/api/v2")!,
+                fetcherType: .statuspage,
+                currentStatus: .unknown,
+                lastChecked: nil,
+                incidents: []
+            ),
+            ServiceProvider(
                 id: "google",
                 name: "Google (Gemini)",
                 shortName: "Gemini",
