@@ -4,15 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is this?
 
-LLM Status is a macOS menu bar app that monitors operational status of LLM providers (Anthropic, OpenAI, Google Gemini, Mistral, DeepSeek, Groq, xAI, OpenRouter, Perplexity). Built with Swift 5.9+ targeting macOS 14 (Sonoma).
+LLM Status is a macOS menu bar app that monitors operational status of LLM providers (Anthropic, OpenAI, Cursor, Google Gemini, Mistral, DeepSeek, Groq, xAI, OpenRouter, Perplexity). Built with Swift 5.9+ targeting macOS 14 (Sonoma).
 
 ## Commands
 
 ```bash
-# Build + bundle + sign + run the .app
+# Build + bundle + sign + install to /Applications + run
 make run
 
-# Build only (release)
+# Build + install to /Applications (Spotlight / Launchpad copy)
+make install
+
+# Build only (release bundle in .build/app)
 make all
 
 # Build debug (faster iteration)
@@ -38,7 +41,7 @@ pkill LLMStatus
 **Menu bar:** `StatusBarController` manages `NSStatusItem` with left-click (popover) and right-click (context menu). Icon updates via 1s Timer polling. The cloud logo (`Resources/MenuBarIcon.pdf`) is tinted with the provider's status color using `sourceAtop` blend.
 
 **Fetchers** — Five strategies, selected per provider via `FetcherType` enum:
-- `StatusFetcher` — Atlassian Statuspage JSON API (Anthropic, OpenAI, DeepSeek, Moonshot)
+- `StatusFetcher` — Atlassian Statuspage JSON API (Anthropic, OpenAI, Cursor, DeepSeek, Moonshot)
 - `GroqFetcher` — incident.io API
 - `GoogleFetcher` — Google Cloud incidents JSON (filters to Gemini products only)
 - `HTMLStatusFetcher` — keyword-based HTML parsing (Mistral, OpenRouter, Perplexity)
@@ -64,6 +67,7 @@ SPM executable target with `Resources/` processed via `.process("Resources")`. T
 - Copies executable to `Contents/MacOS/`
 - Copies `Info.plist` (LSUIElement=true — no Dock icon), `AppIcon.icns`, and SPM resource bundle
 - Signs with entitlements (network.client)
+- `make run` / `make install` copy the bundle to `/Applications/LLMStatus.app` so Spotlight launches the current build (not a stale copy next to the `.build` bundle)
 
 Ad-hoc signing (`-`) for local dev. Use `IDENTITY="Developer ID Application: ..."` for distribution.
 

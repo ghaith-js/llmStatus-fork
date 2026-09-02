@@ -5,9 +5,10 @@ NATIVE_ARCH := $(shell if [ "$$(sysctl -in hw.optional.arm64 2>/dev/null || echo
 BUILD_DIR = .build/$(NATIVE_ARCH)-apple-macosx/release
 BUNDLE_DIR = .build/app/$(BUNDLE_NAME)
 LEGACY_BUNDLE_DIR = build/$(BUNDLE_NAME)
+INSTALL_PATH = /Applications/$(BUNDLE_NAME)
 IDENTITY ?= -
 
-.PHONY: all build bundle sign clean run
+.PHONY: all build bundle sign install clean run
 
 all: bundle sign
 
@@ -34,8 +35,16 @@ sign: bundle
 		$(BUNDLE_DIR)
 	@echo "✓ Signed with identity: $(IDENTITY)"
 
-run: all
-	@open $(BUNDLE_DIR)
+# Canonical copy Spotlight / Launchpad / login items launch.
+install: all
+	@-pkill -x $(EXECUTABLE)
+	@sleep 0.4
+	@if [ -d "/Applications/LLM Status.app" ]; then trash "/Applications/LLM Status.app"; fi
+	@ditto "$(BUNDLE_DIR)" "$(INSTALL_PATH)"
+	@echo "✓ Installed to $(INSTALL_PATH)"
+
+run: install
+	@open "$(INSTALL_PATH)"
 
 clean:
 	@if [ -d ".build/app" ]; then trash ".build/app"; fi

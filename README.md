@@ -6,7 +6,7 @@ A lightweight macOS menu bar app that monitors the operational status of major L
 
 ## Supported providers
 
-Anthropic (Claude), OpenAI, Google (Gemini), Mistral AI, DeepSeek, Moonshot AI, OpenRouter, Perplexity, xAI (Grok), Groq.
+Anthropic (Claude), OpenAI, Cursor, Google (Gemini), Mistral AI, DeepSeek, Moonshot AI, OpenRouter, Perplexity, xAI (Grok), Groq.
 
 ## Features
 
@@ -27,15 +27,16 @@ Anthropic (Claude), OpenAI, Google (Gemini), Mistral AI, DeepSeek, Moonshot AI, 
 Grab the latest `LLMStatus.app` from the [Releases](https://github.com/jean-philippe-lefebvre/llmStatus/releases) page, or build it yourself:
 
 ```bash
-make run        # build + sign + launch
-make all        # build the .app bundle into build/
+make run        # build + sign + install to /Applications + launch
+make install    # build + sign + install to /Applications
+make all        # build the .app bundle into .build/app/
 ```
 
 ## How status is fetched
 
 | Source | Providers |
 |---|---|
-| Atlassian Statuspage API | Anthropic, OpenAI, DeepSeek, Moonshot |
+| Atlassian Statuspage API | Anthropic, OpenAI, Cursor, DeepSeek, Moonshot |
 | incident.io API | Groq |
 | Google Cloud incidents JSON | Gemini |
 | HTML scraping | Mistral, OpenRouter, Perplexity |
