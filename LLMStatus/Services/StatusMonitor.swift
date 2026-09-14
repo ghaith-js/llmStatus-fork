@@ -172,6 +172,11 @@ class StatusMonitor {
                         status = await s
                         incidents = await i
                         components = await c
+                    case .openrouter:
+                        let snapshot = await OpenRouterFetcher.fetch(baseURL: baseURL)
+                        status = snapshot.status
+                        incidents = []
+                        components = snapshot.components
                     case .xai:
                         async let s = XAIFetcher.fetchStatus(baseURL: baseURL)
                         async let i = XAIFetcher.fetchIncidents(baseURL: baseURL)
@@ -358,7 +363,7 @@ class StatusMonitor {
                 shortName: "OpenRouter",
                 statusURL: URL(string: "https://status.openrouter.ai")!,
                 apiBaseURL: URL(string: "https://status.openrouter.ai")!,
-                fetcherType: .htmlStatus,
+                fetcherType: .openrouter,
                 currentStatus: .unknown,
                 lastChecked: nil,
                 incidents: []

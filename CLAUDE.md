@@ -40,11 +40,12 @@ pkill LLMStatus
 
 **Menu bar:** `StatusBarController` manages `NSStatusItem` with left-click (popover) and right-click (context menu). Icon updates via 1s Timer polling. The cloud logo (`Resources/MenuBarIcon.pdf`) is tinted with the provider's status color using `sourceAtop` blend.
 
-**Fetchers** — Five strategies, selected per provider via `FetcherType` enum:
+**Fetchers** — Six strategies, selected per provider via `FetcherType` enum:
 - `StatusFetcher` — Atlassian Statuspage JSON API (Anthropic, OpenAI, Cursor, DeepSeek, Moonshot)
 - `GroqFetcher` — incident.io API
 - `GoogleFetcher` — Google Cloud incidents JSON (filters to Gemini products only)
-- `HTMLStatusFetcher` — keyword-based HTML parsing (Mistral, OpenRouter, Perplexity)
+- `HTMLStatusFetcher` — keyword-based HTML parsing (Mistral, Perplexity)
+- `OpenRouterFetcher` — Datadog public `config.json` (current components and active notices; ignores resolved history)
 - `XAIFetcher` — WKWebView to bypass Cloudflare, then HTML parsing. 10min cache.
 
 All fetchers use `HTTPClient` (shared URLSession, 10s/15s timeouts) except XAIFetcher.

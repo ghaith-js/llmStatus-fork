@@ -4,7 +4,8 @@ enum FetcherType: String, Codable {
     case statuspage   // Anthropic, OpenAI, Cursor, Moonshot, DeepSeek (Atlassian Statuspage API)
     case groq         // Groq (incident.io)
     case google       // Google Cloud (custom)
-    case htmlStatus   // Mistral, OpenRouter (HTML keyword parsing)
+    case htmlStatus   // Mistral, Perplexity (HTML keyword parsing)
+    case openrouter   // OpenRouter (Datadog public config.json)
     case xai          // xAI (WebKit fetcher, cached 10min)
 }
 

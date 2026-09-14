@@ -39,7 +39,8 @@ make all        # build the .app bundle into .build/app/
 | Atlassian Statuspage API | Anthropic, OpenAI, Cursor, DeepSeek, Moonshot |
 | incident.io API | Groq |
 | Google Cloud incidents JSON | Gemini |
-| HTML scraping | Mistral, OpenRouter, Perplexity |
+| Datadog JSON | OpenRouter |
+| HTML scraping | Mistral, Perplexity |
 | Headless WebKit (Cloudflare bypass) | xAI |
 
 All HTTP calls go through a shared `URLSession` with short timeouts; xAI uses a hidden `WKWebView` and caches the result for 10 minutes.
