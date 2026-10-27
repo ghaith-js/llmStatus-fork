@@ -66,6 +66,20 @@ struct SettingsView: View {
                 .scrollDisabled(true)
             }
 
+            // Subscription usage (weekly limits read from the local Claude Code / Codex logins)
+            Section("Subscription usage") {
+                ForEach(SubscriptionUsage.Kind.allCases, id: \.self) { kind in
+                    Toggle(kind.name, isOn: Binding(
+                        get: { settings.isUsageShown(kind) },
+                        set: { shown in
+                            settings.setUsageShown(shown, for: kind)
+                            monitor.usage.enabledKinds = settings.enabledUsageKinds
+                            if shown { Task { await monitor.usage.refresh() } }
+                        }
+                    ))
+                }
+            }
+
             // Watched component per provider
             Section("Focus component") {
                 ForEach(orderedProviders.filter { settings.isProviderEnabled($0.id) && !$0.components.isEmpty }) { provider in

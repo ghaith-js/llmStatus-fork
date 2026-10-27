@@ -4,6 +4,8 @@ import Foundation
 class StatusMonitor {
     var providers: [ServiceProvider]
     let notificationManager = NotificationManager()
+    /// Weekly limits of the Claude / Codex subscriptions (independent of status pages)
+    let usage = UsageMonitor()
     var notificationsEnabled = true
     var notifyProviderID = "all"
     /// True during manual force-refresh (disables Refresh button, shows "Refreshing...")
@@ -118,7 +120,9 @@ class StatusMonitor {
             providers[index].currentStatus = .unknown
             providers[index].statusDetail = "Refreshing..."
         }
+        async let usageRefresh: Void = usage.refresh()
         await fetchAllStatuses()
+        await usageRefresh
         isRefreshing = false
     }
 

@@ -23,6 +23,9 @@ class AppSettings {
     @ObservationIgnored
     @AppStorage("watchedComponents") var watchedComponents: String = ""
     private var watchedComponentsTick = 0
+    @ObservationIgnored
+    @AppStorage("hiddenUsage") var hiddenUsage: String = ""
+    private var hiddenUsageTick = 0
 
     var launchAtLogin: Bool {
         get {
@@ -126,6 +129,28 @@ class AppSettings {
         set {
             providerOrder = newValue.joined(separator: ",")
         }
+    }
+
+    // MARK: - Subscription usage
+
+    var hiddenUsageKinds: Set<SubscriptionUsage.Kind> {
+        Set(hiddenUsage.split(separator: ",").compactMap { SubscriptionUsage.Kind(rawValue: String($0)) })
+    }
+
+    var enabledUsageKinds: Set<SubscriptionUsage.Kind> {
+        Set(SubscriptionUsage.Kind.allCases).subtracting(hiddenUsageKinds)
+    }
+
+    func isUsageShown(_ kind: SubscriptionUsage.Kind) -> Bool {
+        _ = hiddenUsageTick
+        return !hiddenUsageKinds.contains(kind)
+    }
+
+    func setUsageShown(_ shown: Bool, for kind: SubscriptionUsage.Kind) {
+        var kinds = hiddenUsageKinds
+        if shown { kinds.remove(kind) } else { kinds.insert(kind) }
+        hiddenUsage = kinds.map(\.rawValue).sorted().joined(separator: ",")
+        hiddenUsageTick += 1
     }
 
     // MARK: - Watched components per provider

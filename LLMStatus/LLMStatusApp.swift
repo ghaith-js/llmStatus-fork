@@ -45,6 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             monitor.reorderProviders(orderedIDs: settings.providerOrderIDs)
         }
         monitor.startPolling(interval: settings.refreshInterval)
+        monitor.usage.enabledKinds = settings.enabledUsageKinds
+        monitor.usage.startPolling()
         network.start()
 
         statusBarController = StatusBarController(

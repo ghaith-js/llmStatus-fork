@@ -50,6 +50,8 @@ pkill LLMStatus
 
 All fetchers use `HTTPClient` (shared URLSession, 10s/15s timeouts) except XAIFetcher.
 
+**Subscription usage:** `UsageFetcher` / `UsageMonitor` (owned by `StatusMonitor.usage`, 5 min polling) read the weekly + 5h limits of the Claude plan (`api.anthropic.com/api/oauth/usage`, token from the `Claude Code-credentials` keychain item via `/usr/bin/security`, so no prompt) and the ChatGPT plan used by Codex (`chatgpt.com/backend-api/wham/usage`, token from `~/.codex/auth.json`). Tokens are never refreshed here (that would sign the CLIs out); an expired token shows a hint instead. Shown above the provider list, toggled per subscription in Settings.
+
 **Data flow:** `StatusMonitor.fetchAllStatuses()` → TaskGroup dispatches all fetchers concurrently → results update `providers` array → if watched component is set, overrides provider status → notifications sent for active incidents/recovery.
 
 **UI:** Single `StatusPopoverView` toggles between status list and `SettingsView`. No separate window/view controllers.

@@ -64,6 +64,19 @@ struct StatusPopoverView: View {
                     Divider()
                 }
 
+                // Subscription weekly usage
+                if !monitor.usage.visibleUsages.isEmpty {
+                    VStack(spacing: 8) {
+                        ForEach(monitor.usage.visibleUsages) { usage in
+                            UsageRowView(usage: usage)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+
+                    Divider()
+                }
+
                 // Provider list (enabled only)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
