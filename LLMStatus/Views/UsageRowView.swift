@@ -15,7 +15,7 @@ struct UsageRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Text(usage.kind.name)
+                Text(usage.displayName)
                     .font(.subheadline.weight(.semibold))
                 if let plan = usage.plan {
                     Text(plan)

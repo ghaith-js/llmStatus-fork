@@ -18,6 +18,7 @@ Anthropic (Claude), OpenAI, Cursor, Google (Gemini), Mistral AI, DeepSeek, Moons
 - **Notifications** — opt-in alerts for incident start and recovery, scoped to one provider or all.
 - **Disable / reorder** providers via Settings.
 - **Subscription usage** — weekly and 5-hour limits of your Claude and ChatGPT (Codex) plans, read from the local Claude Code and Codex logins, with an estimated split by app and project.
+- **Several subscriptions** — add other Claude or Codex accounts under **Settings → Usage**, each with its own name, grouped (e.g. "Personal", "Client A"). An account is this Mac's login or a login on an SSH host: there, a read-only Python script calls the usage API on the host itself, so the login token never leaves it, and returns the limits only. Tokens are never refreshed; an expired one shows a hint to run the CLI on that host.
 
 ## Subscription usage on servers (optional)
 

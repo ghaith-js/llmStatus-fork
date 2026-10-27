@@ -25,6 +25,9 @@ class AppSettings {
     private var watchedComponentsTick = 0
     @ObservationIgnored
     @AppStorage("hiddenUsage") var hiddenUsage: String = ""
+    @ObservationIgnored
+    @AppStorage("usageGroups") var usageGroupsJSON: String = ""
+    private var usageGroupsTick = 0
     /// SSH hosts whose Codex usage joins the breakdown, as JSON `[RemoteUsage.Host]`.
     @ObservationIgnored
     @AppStorage("usageSSHHosts") var usageSSHHosts: String = ""
@@ -51,7 +54,6 @@ class AppSettings {
             remoteHostsTick += 1
         }
     }
-    private var hiddenUsageTick = 0
 
     var launchAtLogin: Bool {
         get {
@@ -159,24 +161,28 @@ class AppSettings {
 
     // MARK: - Subscription usage
 
-    var hiddenUsageKinds: Set<SubscriptionUsage.Kind> {
-        Set(hiddenUsage.split(separator: ",").compactMap { SubscriptionUsage.Kind(rawValue: String($0)) })
+    /// Subscriptions shown, by group. Before groups existed, only this Mac's logins were shown,
+    /// each hideable: those settings become the first group.
+    /// Writes the migrated groups once, so account ids stay the same from one read to the next.
+    func materializeUsageGroups() {
+        if (try? JSONDecoder().decode([UsageGroup].self, from: Data(usageGroupsJSON.utf8))) == nil {
+            usageGroups = usageGroups
+        }
     }
 
-    var enabledUsageKinds: Set<SubscriptionUsage.Kind> {
-        Set(SubscriptionUsage.Kind.allCases).subtracting(hiddenUsageKinds)
-    }
-
-    func isUsageShown(_ kind: SubscriptionUsage.Kind) -> Bool {
-        _ = hiddenUsageTick
-        return !hiddenUsageKinds.contains(kind)
-    }
-
-    func setUsageShown(_ shown: Bool, for kind: SubscriptionUsage.Kind) {
-        var kinds = hiddenUsageKinds
-        if shown { kinds.remove(kind) } else { kinds.insert(kind) }
-        hiddenUsage = kinds.map(\.rawValue).sorted().joined(separator: ",")
-        hiddenUsageTick += 1
+    var usageGroups: [UsageGroup] {
+        get {
+            _ = usageGroupsTick
+            if let groups = try? JSONDecoder().decode([UsageGroup].self, from: Data(usageGroupsJSON.utf8)) {
+                return groups
+            }
+            let hidden = Set(hiddenUsage.split(separator: ",").compactMap { SubscriptionUsage.Kind(rawValue: String($0)) })
+            return UsageGroup.defaults(hidden: hidden)
+        }
+        set {
+            usageGroupsJSON = (try? String(decoding: JSONEncoder().encode(newValue), as: UTF8.self)) ?? ""
+            usageGroupsTick += 1
+        }
     }
 
     // MARK: - Watched components per provider

@@ -13,7 +13,7 @@ struct RemoteHostsSection: View {
     private var canAdd: Bool { isAvailable(trimmedAlias, for: nil) }
 
     var body: some View {
-        Section("Codex on SSH hosts") {
+        Section("Codex breakdown from SSH hosts") {
             ForEach($hosts) { $host in
                 RemoteHostRow(
                     host: $host,
@@ -38,7 +38,7 @@ struct RemoteHostsSection: View {
                     .foregroundStyle(.orange)
             }
 
-            Text("Click a host to rename it or add folders to search. Codex homes, Hermes and codex-usage.jsonl files are found by content under /home, /root, /srv, /opt and Docker volumes (sudo -n when allowed). Read-only: only token totals and app or project names leave the host.")
+            Text("Adds what this Mac's Codex account spends on these hosts to its breakdown. Click a host to rename it or add folders to search. Codex homes, Hermes and codex-usage.jsonl files are found by content under /home, /root, /srv, /opt and Docker volumes (sudo -n when allowed). Read-only: only token totals and app or project names leave the host.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -83,7 +83,7 @@ struct RemoteHostsSection: View {
         usage.remoteHosts = hosts
         Task {
             // The breakdown refresh reads the hosts only while the Codex row is shown.
-            if usage.enabledKinds.contains(.codex) {
+            if usage.localKinds.contains(.codex) {
                 await usage.refresh()
             } else {
                 for host in hosts where host.enabled { await usage.check(host) }

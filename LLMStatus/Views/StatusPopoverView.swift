@@ -5,6 +5,8 @@ struct StatusPopoverView: View {
     let settings: AppSettings
     let network: NetworkMonitor
     @State private var showingSettings = false
+    /// Usage groups folded in the popover, by id.
+    @AppStorage("collapsedUsageGroups") private var collapsedUsageGroups = ""
     /// Provider whose components are shown in place of the gallery.
     @State private var selectedProviderID: String?
 
@@ -103,10 +105,19 @@ struct StatusPopoverView: View {
 
                 // Subscription usage + provider list share one scroll area (the usage fold can grow)
                 ScrollView {
-                    if !monitor.usage.visibleUsages.isEmpty {
-                        VStack(spacing: 8) {
-                            ForEach(monitor.usage.visibleUsages) { usage in
-                                UsageRowView(usage: usage)
+                    let sections = monitor.usage.sections
+                    if !sections.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(sections, id: \.group.id) { section in
+                                // A single group needs no header: the rows read as before groups existed.
+                                if sections.count > 1 {
+                                    usageGroupHeader(section.group)
+                                }
+                                if sections.count == 1 || !isCollapsed(section.group) {
+                                    ForEach(section.usages) { usage in
+                                        UsageRowView(usage: usage)
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal, 12)
@@ -190,6 +201,30 @@ struct StatusPopoverView: View {
         .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
             selectedProviderID = nil
             showingSettings = true
+        }
+    }
+
+    private func isCollapsed(_ group: UsageGroup) -> Bool {
+        collapsedUsageGroups.split(separator: ",").contains { $0 == group.id.uuidString }
+    }
+
+    private func usageGroupHeader(_ group: UsageGroup) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .rotationEffect(.degrees(isCollapsed(group) ? 0 : 90))
+            Text(group.name)
+                .font(.caption.weight(.semibold))
+            Spacer()
+        }
+        .foregroundStyle(.secondary)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            var ids = Set(collapsedUsageGroups.split(separator: ",").map(String.init))
+            if !ids.insert(group.id.uuidString).inserted { ids.remove(group.id.uuidString) }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                collapsedUsageGroups = ids.sorted().joined(separator: ",")
+            }
         }
     }
 

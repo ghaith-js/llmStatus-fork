@@ -349,3 +349,95 @@ struct UsageBreakdownTests {
         #expect(!vetoed.contains { $0.app == "h · svc2" })
     }
 }
+
+@Suite("Subscription accounts and groups")
+struct UsageAccountsTests {
+    @Test("Settings from before groups become one group of this Mac's logins, hidden ones off")
+    func migration() {
+        let defaults = UserDefaults.standard
+        let saved = (defaults.string(forKey: "usageGroups"), defaults.string(forKey: "hiddenUsage"))
+        defer {
+            defaults.set(saved.0, forKey: "usageGroups")
+            defaults.set(saved.1, forKey: "hiddenUsage")
+        }
+        defaults.set("", forKey: "usageGroups")
+        defaults.set("codex", forKey: "hiddenUsage")
+        let settings = AppSettings()
+        let groups = settings.usageGroups
+        #expect(groups.count == 1)
+        #expect(groups[0].accounts.map(\.kind) == [.claude, .codex])
+        #expect(groups[0].accounts.map(\.enabled) == [true, false])
+        #expect(groups[0].accounts.allSatisfy { $0.isLocal })
+
+        // Migrated once: the same account ids from one read to the next.
+        settings.materializeUsageGroups()
+        #expect(settings.usageGroups == settings.usageGroups)
+        #expect(settings.usageGroups.map(\.id) == AppSettings().usageGroups.map(\.id))
+
+        var changed = settings.usageGroups
+        changed.append(UsageGroup(name: "Client A", accounts: [UsageAccount(name: "Claude · A", kind: .claude, host: "client-vps")]))
+        settings.usageGroups = changed
+        #expect(settings.usageGroups.map(\.name) == ["Personal", "Client A"])
+        #expect(settings.usageGroups[1].accounts[0].location == "client-vps")
+    }
+
+    @Test("Remote account answers become limits, errors or hints, never a false 0 %")
+    func remoteParse() {
+        let account = UsageAccount(name: "Codex · A", kind: .codex, host: "client-vps")
+        let base = SubscriptionUsage(kind: .codex, accountID: account.id, title: account.name)
+        let ok = #"{"status": 200, "plan": null, "body": {"plan_type": "pro", "rate_limit": {"primary_window": {"used_percent": 12, "limit_window_seconds": 604800, "reset_at": 1793000000}}}}"#
+        let usage = RemoteAccountUsage.parse(Data(ok.utf8), into: base, host: "client-vps")
+        #expect(usage.weekly?.percent == 12)
+        #expect(usage.plan == "Pro")
+        #expect(usage.displayName == "Codex · A")
+        #expect(usage.id == account.id.uuidString)
+
+        let claude = SubscriptionUsage(kind: .claude, title: "Claude · A")
+        let expired = RemoteAccountUsage.parse(Data(#"{"error": "expired", "plan": "max"}"#.utf8), into: claude, host: "h")
+        #expect(expired.error == "Token expired on h, run claude there")
+        #expect(expired.plan == "Max")
+        #expect(RemoteAccountUsage.parse(Data(#"{"status": 401}"#.utf8), into: claude, host: "h").error == "Session expired on h, run claude there")
+        #expect(RemoteAccountUsage.parse(Data(#"{"error": "missing", "folder": "/srv/a"}"#.utf8), into: claude, host: "h").error == "No Claude login in /srv/a on h")
+        #expect(RemoteAccountUsage.parse(Data("garbage".utf8), into: claude, host: "h").error == "Unreadable answer from h")
+        #expect(RemoteAccountUsage.parse(Data(#"{"status": 500}"#.utf8), into: claude, host: "h").weekly == nil)
+    }
+
+    @Test("The remote script reads the login folder and stops before the network when the token is expired")
+    func remoteScript() throws {
+        let fm = FileManager.default
+        let folder = fm.temporaryDirectory.appendingPathComponent("acct-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: folder) }
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        try #"{"claudeAiOauth": {"accessToken": "x", "expiresAt": 1000, "subscriptionType": "team"}}"#
+            .write(to: folder.appendingPathComponent(".credentials.json"), atomically: true, encoding: .utf8)
+
+        func run(_ account: UsageAccount) throws -> [String: Any] {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            process.arguments = ["-I", "-", NSUserName()]
+            let input = Pipe(), output = Pipe()
+            process.standardInput = input
+            process.standardOutput = output
+            try process.run()
+            input.fileHandleForWriting.write(Data(RemoteAccountUsage.script(for: account).utf8))
+            try input.fileHandleForWriting.close()
+            defer { process.waitUntilExit() }
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            return try #require(object)
+        }
+        let expired = try run(UsageAccount(name: "A", kind: .claude, host: "h", folder: folder.path))
+        #expect(expired["error"] as? String == "expired")
+        #expect(expired["plan"] as? String == "team")
+        let missing = try run(UsageAccount(name: "B", kind: .codex, host: "h", folder: folder.path))
+        #expect(missing["error"] as? String == "missing")
+        #expect(RemoteAccountUsage.remoteCommand.contains("\"$U\"") && !RemoteAccountUsage.remoteCommand.contains("CONFIG"))
+        #expect(RemoteAccountUsage.isValidFolder("/srv/a") && RemoteAccountUsage.isValidFolder("~/.codex-client"))
+        #expect(!RemoteAccountUsage.isValidFolder("~other/.codex") && !RemoteAccountUsage.isValidFolder(".codex"))
+        // Pointing an account elsewhere changes its source, so rows read before are not reused.
+        let local = UsageAccount(name: "C", kind: .codex)
+        var moved = local
+        moved.host = "client-vps"
+        #expect(local.source != moved.source)
+    }
+}

@@ -120,19 +120,8 @@ struct SettingsView: View {
                         }
                     }
                 case .usage:
-                    // Subscription usage (weekly limits read from the local Claude Code / Codex logins)
-                    Section("Subscription usage") {
-                        ForEach(SubscriptionUsage.Kind.allCases, id: \.self) { kind in
-                            Toggle(kind.name, isOn: Binding(
-                                get: { settings.isUsageShown(kind) },
-                                set: { shown in
-                                    settings.setUsageShown(shown, for: kind)
-                                    monitor.usage.enabledKinds = settings.enabledUsageKinds
-                                    if shown { Task { await monitor.usage.refresh() } }
-                                }
-                            ))
-                        }
-                    }
+                    // Subscriptions shown, by group (this Mac's logins and logins on SSH hosts)
+                    UsageAccountsSection(settings: settings, usage: monitor.usage)
 
                     RemoteHostsSection(settings: settings, usage: monitor.usage)
                 }

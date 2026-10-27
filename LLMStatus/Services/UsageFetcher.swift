@@ -19,7 +19,7 @@ struct SubscriptionUsage: Identifiable, Equatable {
         }
     }
 
-    enum Kind: String, CaseIterable {
+    enum Kind: String, CaseIterable, Codable {
         case claude, codex
 
         var name: String {
@@ -56,8 +56,16 @@ struct SubscriptionUsage: Identifiable, Equatable {
     var breakdown: [UsageShare] = []
     /// Remote hosts that could not be read for the breakdown.
     var breakdownErrors: [String] = []
+    /// The `UsageAccount` this row belongs to; nil only in tests.
+    var accountID: UUID?
+    /// The account's name in Settings; the kind's name when unset.
+    var title: String?
+    /// `UsageAccount.source` the row was read from: a row fetched before the account was
+    /// pointed elsewhere (another host, folder or kind) is never shown under it.
+    var source: String?
 
-    var id: String { kind.rawValue }
+    var id: String { accountID?.uuidString ?? kind.rawValue }
+    var displayName: String { title ?? kind.name }
 }
 
 /// Reads the OAuth tokens the official CLIs already store locally. Never refreshes them:
@@ -266,7 +274,10 @@ enum UsageFetcher {
 @Observable
 class UsageMonitor {
     var usages: [SubscriptionUsage] = []
-    var enabledKinds: Set<SubscriptionUsage.Kind> = Set(SubscriptionUsage.Kind.allCases)
+    /// Accounts shown, by group. Changing them drops the rows of removed accounts at the next refresh.
+    var groups: [UsageGroup] = [] {
+        didSet { if groups != oldValue { generation += 1 } }
+    }
     /// SSH hosts whose Codex usage joins the breakdown (disabled ones are kept but not read).
     var remoteHosts: [RemoteUsage.Host] = [] {
         didSet { if remoteHosts != oldValue { generation += 1 } }
@@ -284,8 +295,19 @@ class UsageMonitor {
     @ObservationIgnored private var generation = 0
     private var pollingTask: Task<Void, Never>?
 
-    var visibleUsages: [SubscriptionUsage] {
-        usages.filter { enabledKinds.contains($0.kind) }
+    var enabledAccounts: [UsageAccount] { groups.flatMap(\.accounts).filter(\.enabled) }
+
+    /// Kinds of the enabled accounts logged in on this Mac (the ones with a log breakdown).
+    var localKinds: Set<SubscriptionUsage.Kind> { Set(enabledAccounts.filter(\.isLocal).map(\.kind)) }
+
+    /// Groups with at least one enabled account, each with the rows fetched so far.
+    var sections: [(group: UsageGroup, usages: [SubscriptionUsage])] {
+        groups.compactMap { group in
+            let rows = group.accounts.filter(\.enabled).compactMap { account in
+                usages.first { $0.accountID == account.id }
+            }
+            return rows.isEmpty ? nil : (group, rows)
+        }
     }
 
     func startPolling(interval: TimeInterval = 300) {
@@ -300,24 +322,48 @@ class UsageMonitor {
 
     @MainActor
     func refresh() async {
-        let kinds = SubscriptionUsage.Kind.allCases.filter { enabledKinds.contains($0) }
+        let accounts = enabledAccounts
+        usages.removeAll { usage in !accounts.contains { $0.id == usage.accountID && $0.source == usage.source } }
+        // A slow SSH host must not hold this Mac's rows or their breakdown back.
+        async let remote: Void = fetch(accounts.filter { !$0.isLocal })
+        await fetch(accounts.filter(\.isLocal))
+        await refreshBreakdowns(accounts)
+        await remote
+    }
+
+    @MainActor
+    private func fetch(_ accounts: [UsageAccount]) async {
         await withTaskGroup(of: SubscriptionUsage.self) { group in
-            for kind in kinds { group.addTask { await UsageFetcher.fetch(kind) } }
+            for account in accounts {
+                group.addTask {
+                    // A remote login is read over ssh, which blocks: never on the main actor.
+                    var usage = account.isLocal ? await UsageFetcher.fetch(account.kind) : RemoteAccountUsage.fetch(account)
+                    usage.accountID = account.id
+                    usage.source = account.source
+                    return usage
+                }
+            }
             // Publish each subscription as soon as it lands, replacing only its own row,
             // so overlapping refreshes (poll, Refresh, toggle) never drop another row.
             for await result in group {
                 var result = result
-                if let previous = usages.first(where: { $0.kind == result.kind }) {
+                if let previous = usages.first(where: { $0.id == result.id && $0.source == result.source }) {
                     result.breakdown = previous.breakdown
                     result.breakdownErrors = previous.breakdownErrors
                 }
                 publish(result)
             }
         }
-        // The log scan takes seconds on a cold cache: percentages show first, the split follows.
+    }
+
+    /// The log scan takes seconds on a cold cache: percentages show first, the split follows.
+    /// Only this Mac's logins have a breakdown: their logs are the local ones.
+    @MainActor
+    private func refreshBreakdowns(_ accounts: [UsageAccount]) async {
         let started = generation
-        for kind in kinds {
-            guard let weekly = usages.first(where: { $0.kind == kind })?.weekly else { continue }
+        for kind in SubscriptionUsage.Kind.allCases {
+            let rows = accounts.filter { $0.isLocal && $0.kind == kind }.map(\.id)
+            guard let weekly = usages.first(where: { rows.contains($0.accountID ?? UUID()) })?.weekly else { continue }
             let length = TimeInterval(weekly.seconds ?? 7 * 24 * 3600)
             let start = (weekly.resetsAt ?? Date()).addingTimeInterval(-length)
             var remote = [RemoteUsage.Result]()
@@ -328,7 +374,7 @@ class UsageMonitor {
                 for: kind, since: start, extra: remote.flatMap(\.records)
             )
             guard started == generation else { return }
-            if let index = usages.firstIndex(where: { $0.kind == kind }) {
+            for index in usages.indices where rows.contains(usages[index].accountID ?? UUID()) {
                 usages[index].breakdown = shares
                 usages[index].breakdownErrors = remote.compactMap(\.error)
             }
@@ -367,9 +413,12 @@ class UsageMonitor {
     }
 
     private func publish(_ usage: SubscriptionUsage) {
-        let order = SubscriptionUsage.Kind.allCases
-        usages.removeAll { $0.kind == usage.kind }
+        // An account removed or pointed elsewhere while its fetch was in flight keeps its new state.
+        guard let account = enabledAccounts.first(where: { $0.id == usage.accountID }),
+              usage.source == nil || usage.source == account.source else { return }
+        var usage = usage
+        usage.title = account.name
+        usages.removeAll { $0.id == usage.id }
         usages.append(usage)
-        usages.sort { order.firstIndex(of: $0.kind)! < order.firstIndex(of: $1.kind)! }
     }
 }
