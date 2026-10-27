@@ -116,7 +116,7 @@ private struct UsageGroupHeader: View {
     }
 }
 
-private struct UsageAccountRow: View {
+struct UsageAccountRow: View {
     @Binding var account: UsageAccount
     let usage: SubscriptionUsage?
     let startEditing: Bool
@@ -125,6 +125,13 @@ private struct UsageAccountRow: View {
     @State private var editing = false
     @State private var draft = UsageAccount(name: "", kind: .claude)
     @State private var onHost = false
+    /// Logins found on the host for the draft's kind; nil until searched.
+    @State private var logins: [RemoteAccountUsage.Login]?
+    @State private var searching = false
+    @State private var searchError: String?
+    /// The user picked "Other folder…" instead of a found login.
+    @State private var otherFolder = false
+    private static let otherTag = "\u{0}other"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -176,6 +183,9 @@ private struct UsageAccountRow: View {
             .labelsHidden()
             .onChange(of: draft.kind) { old, new in
                 if draft.name == old.name { draft.name = new.name }
+                // Logins differ by kind: search again.
+                draft.folder = nil
+                findLogins()
             }
             Picker("Login on", selection: $onHost) {
                 Text("This Mac").tag(false)
@@ -184,12 +194,36 @@ private struct UsageAccountRow: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             if onHost {
-                TextField("SSH host", text: Binding(get: { draft.host ?? "" }, set: { draft.host = $0 }),
-                          prompt: Text("SSH alias, e.g. client-vps"))
-                    .onSubmit(commit)
-                TextField("Folder", text: Binding(get: { draft.folder ?? "" }, set: { draft.folder = $0 }),
-                          prompt: Text(draft.kind == .claude ? "Login folder (default ~/.claude)" : "Login folder (default ~/.codex)"))
-                    .onSubmit(commit)
+                HStack {
+                    TextField("SSH host", text: Binding(get: { draft.host ?? "" }, set: { draft.host = $0 }),
+                              prompt: Text("SSH alias, e.g. client-vps"))
+                        .onSubmit(findLogins)
+                        .onChange(of: draft.host) { logins = nil; searchError = nil }
+                    if searching {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Button("Find logins", action: findLogins)
+                            .disabled(!RemoteUsage.isValidHost(trimmedHost))
+                    }
+                }
+                if let logins, !logins.isEmpty {
+                    Picker("Login", selection: loginSelection) {
+                        ForEach(logins, id: \.folder) { login in
+                            Text(login.detail.isEmpty ? login.folder : "\(login.folder) · \(login.detail)").tag(login.folder)
+                        }
+                        Divider()
+                        Text("Other folder…").tag(Self.otherTag)
+                    }
+                }
+                if logins?.isEmpty != false || otherFolder {
+                    TextField("Login folder", text: Binding(get: { draft.folder ?? "" }, set: { draft.folder = $0 }),
+                              prompt: Text("\(defaultFolder) (default)"))
+                        .onSubmit(commit)
+                }
+                Text(loginHint)
+                    .font(.caption2)
+                    .foregroundStyle(searchError == nil ? Color.secondary : Color.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             HStack {
                 Text(problem ?? "Return to save, Esc to cancel.")
@@ -203,6 +237,52 @@ private struct UsageAccountRow: View {
             .buttonStyle(.borderless)
         }
         .font(.caption)
+    }
+
+    private var trimmedHost: String { (draft.host ?? "").trimmingCharacters(in: .whitespaces) }
+    private var defaultFolder: String { draft.kind == .claude ? "~/.claude" : "~/.codex" }
+    private var loginFile: String { draft.kind == .claude ? ".credentials.json" : "auth.json" }
+
+    private var loginHint: String {
+        if let searchError { return searchError }
+        if searching { return "Looking for \(draft.kind.name) logins on \(trimmedHost)…" }
+        guard let logins else { return "Find logins lists the \(draft.kind.name) logins on the host." }
+        if logins.isEmpty { return "No \(draft.kind.name) login found. Type the folder holding \(loginFile)." }
+        return otherFolder ? "Folder on the host holding \(loginFile), starting with / or ~/." : "Pick the login of this subscription."
+    }
+
+    /// The picker's value: a found login's folder, or "Other folder…".
+    private var loginSelection: Binding<String> {
+        Binding(
+            get: { otherFolder ? Self.otherTag : (draft.folder ?? defaultFolder) },
+            set: { value in
+                otherFolder = value == Self.otherTag
+                if !otherFolder { draft.folder = value == defaultFolder ? nil : value }
+            }
+        )
+    }
+
+    private func findLogins() {
+        let host = trimmedHost, kind = draft.kind
+        guard onHost, RemoteUsage.isValidHost(host) else { return }
+        searching = true
+        searchError = nil
+        Task {
+            // ssh blocks: off the main actor.
+            let found = await Task.detached { RemoteAccountUsage.findLogins(host: host, kind: kind) }.value
+            searching = false
+            guard host == trimmedHost, kind == draft.kind else { return }
+            logins = found.error == nil ? found.logins : nil
+            searchError = found.error
+            let folders = found.logins.map(\.folder)
+            if let folder = draft.folder, folder != defaultFolder {
+                // A typed folder the search did not see stays as typed.
+                otherFolder = !folders.contains(folder) && !folders.isEmpty
+            } else if !folders.contains(defaultFolder), let first = folders.first {
+                draft.folder = first
+                otherFolder = false
+            }
+        }
     }
 
     /// Why the draft cannot be saved, if it cannot.
@@ -228,7 +308,10 @@ private struct UsageAccountRow: View {
     private func beginEditing() {
         draft = account
         onHost = account.host != nil
+        logins = nil
+        otherFolder = false
         editing = true
+        findLogins()
     }
 
     private func cancel() {
@@ -244,7 +327,7 @@ private struct UsageAccountRow: View {
         if onHost {
             saved.host = saved.host?.trimmingCharacters(in: .whitespaces)
             let folder = (saved.folder ?? "").trimmingCharacters(in: .whitespaces)
-            saved.folder = folder.isEmpty ? nil : folder
+            saved.folder = folder.isEmpty || folder == defaultFolder ? nil : folder
         } else {
             saved.host = nil
             saved.folder = nil

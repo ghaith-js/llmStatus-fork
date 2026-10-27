@@ -91,6 +91,87 @@ enum RemoteAccountUsage {
         return usage
     }
 
+    /// A login found on a host, offered in the account editor.
+    struct Login: Hashable {
+        /// "~/.claude" when in the login user's home, else absolute.
+        let folder: String
+        /// Plan and token state, e.g. "Team · expired".
+        let detail: String
+    }
+
+    /// Claude or Codex logins on a host (reads the login files' plan and expiry only). Nil error when the search ran.
+    static func findLogins(host: String, kind: SubscriptionUsage.Kind) -> (logins: [Login], error: String?) {
+        guard RemoteUsage.isValidHost(host) else { return ([], "Invalid SSH host") }
+        let json = (try? JSONSerialization.data(withJSONObject: ["kind": kind.rawValue])) ?? Data("{}".utf8)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "--", host, remoteCommand]
+        let input = Pipe(), output = Pipe()
+        process.standardInput = input
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return ([], "ssh unavailable") }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 30) {
+            if process.isRunning { process.terminate() }
+        }
+        input.fileHandleForWriting.write(Data(("CONFIG_B64 = \"\(json.base64EncodedString())\"\n" + finder).utf8))
+        try? input.fileHandleForWriting.close()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return ([], "\(host) unreachable") }
+        return (parseLogins(data), nil)
+    }
+
+    /// The default folder (~/.claude, ~/.codex) first, then by folder.
+    static func parseLogins(_ data: Data) -> [Login] {
+        let logins: [Login] = data.split(separator: UInt8(ascii: "\n")).compactMap { line in
+            guard let object = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
+                  let folder = object["folder"] as? String else { return nil }
+            let plan = (object["plan"] as? String)?.capitalized
+            let state = (object["expired"] as? Bool).map { $0 ? "expired" : "valid" }
+            return Login(folder: folder, detail: [plan, state].compactMap { $0 }.joined(separator: " · "))
+        }
+        return logins.sorted { a, b in
+            let defaults = ["~/.claude", "~/.codex"]
+            return (defaults.contains(a.folder) ? 0 : 1, a.folder) < (defaults.contains(b.folder) ? 0 : 1, b.folder)
+        }
+    }
+
+    /// Runs like `collector`; lists the folders holding a login of the kind, the login user's own first.
+    static let finder = #"""
+import base64, json, os, pwd, sys, time
+
+kind = json.loads(base64.b64decode(CONFIG_B64))["kind"]
+home = pwd.getpwnam(sys.argv[1]).pw_dir if len(sys.argv) > 1 else os.path.expanduser("~")
+name = ".credentials.json" if kind == "claude" else "auth.json"
+roots = [(home, 4)] + ([("/home", 5), ("/root", 4), ("/srv", 5), ("/opt", 4)] if os.geteuid() == 0 else [])
+skip = {"node_modules", ".git", ".cache", ".npm", ".venv", "venv", "sessions", "projects"}
+seen, deadline = set(), time.time() + 15
+for root, depth in roots:
+    base = root.rstrip("/").count("/")
+    for folder, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in skip] if folder.count("/") - base < depth else []
+        if time.time() > deadline:
+            break
+        if name not in files or os.path.realpath(folder) in seen:
+            continue
+        seen.add(os.path.realpath(folder))
+        try:
+            with open(os.path.join(folder, name)) as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        shown = "~" + folder[len(home):] if folder == home or folder.startswith(home + "/") else folder
+        if kind == "claude":
+            oauth = data.get("claudeAiOauth") if isinstance(data, dict) else None
+            if isinstance(oauth, dict) and oauth.get("accessToken"):
+                expires = oauth.get("expiresAt")
+                print(json.dumps({"folder": shown, "plan": oauth.get("subscriptionType"),
+                                  "expired": bool(expires and expires / 1000 < time.time())}))
+        elif isinstance(data, dict) and isinstance(data.get("tokens"), dict) and data["tokens"].get("access_token"):
+            print(json.dumps({"folder": shown}))
+"""#
+
     /// Runs on the host with `python3 -I - <login user>`, after a `CONFIG_B64 = "..."` line.
     /// Reads the login file, calls the usage API with it, and prints the limits only.
     static let collector = #"""

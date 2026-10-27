@@ -440,4 +440,17 @@ struct UsageAccountsTests {
         moved.host = "client-vps"
         #expect(local.source != moved.source)
     }
+
+    @Test("Logins found on a host list the default folder first, with plan and token state")
+    func foundLogins() {
+        let body = [
+            #"{"folder": "~/.claude-work", "plan": "team", "expired": true}"#,
+            #"{"folder": "~/.claude", "plan": "team", "expired": false}"#,
+            #"{"folder": "/srv/app/codex-home"}"#,
+            "noise",
+        ].joined(separator: "\n")
+        let logins = RemoteAccountUsage.parseLogins(Data(body.utf8))
+        #expect(logins.map(\.folder) == ["~/.claude", "/srv/app/codex-home", "~/.claude-work"])
+        #expect(logins.map(\.detail) == ["Team · valid", "", "Team · expired"])
+    }
 }
