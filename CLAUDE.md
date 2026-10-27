@@ -54,7 +54,7 @@ All fetchers use `HTTPClient` (shared URLSession, 10s/15s timeouts) except XAIFe
 
 **Data flow:** `StatusMonitor.fetchAllStatuses()` → TaskGroup dispatches all fetchers concurrently → results update `providers` array → if watched component is set, overrides provider status → notifications sent for active incidents/recovery.
 
-**UI:** Single `StatusPopoverView` toggles between status list and `SettingsView`. No separate window/view controllers.
+**UI:** Single `StatusPopoverView` toggles between the main page (subscription usage, then a two-column "Status" gallery of `ProviderCardView`: short name, status icon, and the impacted components or incidents when not operational), a `ProviderDetailView` (components, active incidents, status page link; opened by tapping a card) and `SettingsView`. No separate window/view controllers.
 
 ## Key patterns
 

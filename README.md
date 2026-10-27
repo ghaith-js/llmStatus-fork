@@ -11,7 +11,8 @@ Anthropic (Claude), OpenAI, Cursor, Google (Gemini), Mistral AI, DeepSeek, Moons
 ## Features
 
 - **Menu bar indicator** — cloud icon tinted by aggregated severity (green / yellow / orange / red).
-- **Component drill-down** — expand any provider to see per-component status (e.g. Claude API vs Claude Code, OpenAI Chat Completions vs Sora).
+- **Status gallery** — providers in two columns, each card naming the impacted components or incidents when something is wrong.
+- **Component drill-down** — tap any provider to see per-component status (e.g. Claude API vs Claude Code, OpenAI Chat Completions vs Sora).
 - **Active incident surfacing** — incidents in `investigating` / `identified` / `monitoring` phases are shown inline, even when the provider's global indicator is still green.
 - **Watched component** — pin a single component per provider so the menu bar reflects only what you care about.
 - **Notifications** — opt-in alerts for incident start and recovery, scoped to one provider or all.

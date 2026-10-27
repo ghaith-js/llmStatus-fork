@@ -5,6 +5,17 @@ struct StatusPopoverView: View {
     let settings: AppSettings
     let network: NetworkMonitor
     @State private var showingSettings = false
+    /// Provider whose components are shown in place of the gallery.
+    @State private var selectedProviderID: String?
+
+    private var selectedProvider: ServiceProvider? {
+        monitor.enabledProviders.first { $0.id == selectedProviderID }
+    }
+
+    private let galleryColumns = [
+        GridItem(.flexible(), spacing: 8, alignment: .top),
+        GridItem(.flexible(), spacing: 8, alignment: .top),
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -34,6 +45,32 @@ struct StatusPopoverView: View {
                 Divider()
 
                 SettingsView(settings: settings, monitor: monitor)
+            } else if let provider = selectedProvider {
+                HStack {
+                    Button {
+                        selectedProviderID = nil
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .focusable(false)
+
+                    Text("Status")
+                        .font(.headline)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+                Divider()
+
+                ScrollView {
+                    ProviderDetailView(provider: provider)
+                        .padding(12)
+                }
             } else {
                 // Header
                 HStack {
@@ -78,18 +115,19 @@ struct StatusPopoverView: View {
                         Divider()
                     }
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(monitor.enabledProviders) { provider in
-                            ServiceRowView(provider: provider)
-                                .padding(.horizontal, 12)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Status")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
 
-                            if provider.id != monitor.enabledProviders.last?.id {
-                                Divider()
-                                    .padding(.horizontal, 12)
+                        LazyVGrid(columns: galleryColumns, spacing: 8) {
+                            ForEach(monitor.enabledProviders) { provider in
+                                ProviderCardView(provider: provider)
+                                    .onTapGesture { selectedProviderID = provider.id }
                             }
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(12)
                 }
 
                 Divider()
@@ -150,6 +188,7 @@ struct StatusPopoverView: View {
         .focusable(false)
         .focusEffectDisabled()
         .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
+            selectedProviderID = nil
             showingSettings = true
         }
     }

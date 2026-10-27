@@ -76,3 +76,38 @@ struct ServiceStatusTests {
         #expect(ServiceStatus.unknown.label == "Unknown")
     }
 }
+
+@Suite("Provider gallery card")
+struct ProviderImpactedTests {
+    private func provider(components: [ServiceComponent] = [], incidents: [Incident] = []) -> ServiceProvider {
+        let url = URL(string: "https://example.com")!
+        return ServiceProvider(id: "p", name: "Provider", shortName: "P", statusURL: url, apiBaseURL: url,
+                               fetcherType: .statuspage, currentStatus: .degraded, incidents: incidents, components: components)
+    }
+
+    private func incident(_ name: String, affected: [String], resolved: Bool = false) -> Incident {
+        Incident(id: name, name: name, impact: .minor, status: .investigating, createdAt: Date(),
+                 resolvedAt: resolved ? Date() : nil, shortlink: nil, updates: [], affectedComponents: affected)
+    }
+
+    @Test("Impacted lists degraded leaf components with their own status, once each")
+    func components() {
+        let group = ServiceComponent(id: "g", name: "APIs", status: .majorOutage, children: [
+            ServiceComponent(id: "a", name: "Chat", status: .majorOutage),
+            ServiceComponent(id: "b", name: "Files", status: .operational),
+            ServiceComponent(id: "c", name: "Login", status: .degraded),
+        ])
+        let other = ServiceComponent(id: "d", name: "Login", status: .degraded)
+        let impacted = provider(components: [group, other]).impacted
+        #expect(impacted.map(\.name) == ["Chat", "Login"])
+        #expect(impacted.map(\.status) == [.majorOutage, .degraded])
+    }
+
+    @Test("Without degraded components, active incidents name what is impacted")
+    func incidents() {
+        let named = provider(incidents: [incident("Errors", affected: ["API", "Console"]), incident("Old", affected: ["Web"], resolved: true)])
+        #expect(named.impacted.map(\.name) == ["API", "Console"])
+        #expect(provider(incidents: [incident("Elevated errors", affected: [])]).impacted.map(\.name) == ["Elevated errors"])
+        #expect(provider().impacted.isEmpty)
+    }
+}
