@@ -3,6 +3,14 @@ import SwiftUI
 /// Weekly limit gauge for one subscription, with the shorter window as a secondary figure.
 struct UsageRowView: View {
     let usage: SubscriptionUsage
+    @State private var isExpanded: Bool
+
+    init(usage: SubscriptionUsage, startExpanded: Bool = false) {
+        self.usage = usage
+        _isExpanded = State(initialValue: startExpanded)
+    }
+
+    private var hasBreakdown: Bool { !usage.breakdown.isEmpty && usage.weekly != nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -23,6 +31,13 @@ struct UsageRowView: View {
                         .foregroundStyle(Self.color(for: weekly.percent))
                 }
 
+                if hasBreakdown {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+
                 Button {
                     NSWorkspace.shared.open(usage.kind.dashboardURL)
                 } label: {
@@ -33,6 +48,13 @@ struct UsageRowView: View {
                 .buttonStyle(.plain)
                 .focusable(false)
                 .help("Open usage page")
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard hasBreakdown else { return }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
             }
 
             if let weekly = usage.weekly {
@@ -62,6 +84,56 @@ struct UsageRowView: View {
             }
             .font(.caption2)
             .foregroundStyle(.secondary)
+
+            if isExpanded, let weekly = usage.weekly {
+                breakdown(weeklyPercent: weekly.percent)
+            }
+        }
+    }
+
+    /// Apps, then their projects, each with its estimated part of the weekly percentage.
+    private func breakdown(weeklyPercent: Double) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(usage.breakdown) { app in
+                shareRow(app.name, share: app.share, weeklyPercent: weeklyPercent)
+                    .font(.caption.weight(.medium))
+                ForEach(app.children) { project in
+                    shareRow(project.name, share: project.share, weeklyPercent: weeklyPercent)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 12)
+                }
+            }
+            Text("Estimated from this Mac's logs (tokens). \(usage.kind.breakdownCaveat)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
+        }
+        .padding(.top, 4)
+    }
+
+    private func shareRow(_ name: String, share: Double, weeklyPercent: Double) -> some View {
+        HStack {
+            Text(name)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            Text(Self.percentLabel(share * weeklyPercent))
+                .monospacedDigit()
+            Text(share < 0.005 ? "(<1%)" : "(\(Int((share * 100).rounded()))%)")
+                .monospacedDigit()
+                .foregroundStyle(.tertiary)
+                .frame(width: 40, alignment: .trailing)
+        }
+    }
+
+    /// One decimal below 10 % so small consumers are not all "0%"; "<0.1%" rather than a false zero.
+    static func percentLabel(_ value: Double) -> String {
+        switch value {
+        case ..<0.05: "<0.1%"
+        case ..<10: String(format: "%.1f%%", value)
+        default: "\(Int(value.rounded()))%"
         }
     }
 

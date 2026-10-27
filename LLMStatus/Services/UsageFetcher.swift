@@ -29,6 +29,14 @@ struct SubscriptionUsage: Identifiable, Equatable {
             }
         }
 
+        /// What the local-log breakdown cannot see.
+        var breakdownCaveat: String {
+            switch self {
+            case .claude: "claude.ai (web, mobile) and other devices are not included."
+            case .codex: "Codex cloud tasks and other devices are not included."
+            }
+        }
+
         var dashboardURL: URL {
             switch self {
             case .claude: URL(string: "https://claude.ai/settings/usage")!
@@ -44,6 +52,8 @@ struct SubscriptionUsage: Identifiable, Equatable {
     var plan: String?
     /// Set when usage could not be read; shown instead of the gauges.
     var error: String?
+    /// Estimated split of the weekly window by app, then project (local logs only).
+    var breakdown: [UsageShare] = []
 
     var id: String { kind.rawValue }
 }
@@ -226,16 +236,20 @@ enum UsageFetcher {
         return process.terminationStatus == 0 ? data : nil
     }
 
-    static func parseISODate(_ value: String) -> Date? {
+    // Creating a formatter costs far more than parsing: the log scan parses tens of thousands of dates.
+    // ISO8601DateFormatter is thread-safe once configured.
+    private static let fractionalFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        if let date = formatter.date(from: value) { return date }
+        return formatter
+    }()
+    private static let plainFormatter = ISO8601DateFormatter()
+
+    static func parseISODate(_ value: String) -> Date? {
+        if let date = fractionalFormatter.date(from: value) ?? plainFormatter.date(from: value) { return date }
         // Python-style microseconds (".196176") are rejected by ISO8601DateFormatter; keep milliseconds.
         let trimmed = value.replacingOccurrences(of: #"(\.\d{3})\d+"#, with: "$1", options: .regularExpression)
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: trimmed)
+        return fractionalFormatter.date(from: trimmed)
     }
 }
 
@@ -268,12 +282,27 @@ class UsageMonitor {
             // Publish each subscription as soon as it lands, replacing only its own row,
             // so overlapping refreshes (poll, Refresh, toggle) never drop another row.
             for await result in group {
-                usages.removeAll { $0.kind == result.kind }
-                usages.append(result)
-                usages.sort { a, b in
-                    SubscriptionUsage.Kind.allCases.firstIndex(of: a.kind)! < SubscriptionUsage.Kind.allCases.firstIndex(of: b.kind)!
-                }
+                var result = result
+                result.breakdown = usages.first { $0.kind == result.kind }?.breakdown ?? []
+                publish(result)
             }
         }
+        // The log scan takes seconds on a cold cache: percentages show first, the split follows.
+        for kind in kinds {
+            guard let weekly = usages.first(where: { $0.kind == kind })?.weekly else { continue }
+            let length = TimeInterval(weekly.seconds ?? 7 * 24 * 3600)
+            let start = (weekly.resetsAt ?? Date()).addingTimeInterval(-length)
+            let shares = await UsageBreakdown.shared.shares(for: kind, since: start)
+            if let index = usages.firstIndex(where: { $0.kind == kind }) {
+                usages[index].breakdown = shares
+            }
+        }
+    }
+
+    private func publish(_ usage: SubscriptionUsage) {
+        let order = SubscriptionUsage.Kind.allCases
+        usages.removeAll { $0.kind == usage.kind }
+        usages.append(usage)
+        usages.sort { order.firstIndex(of: $0.kind)! < order.firstIndex(of: $1.kind)! }
     }
 }

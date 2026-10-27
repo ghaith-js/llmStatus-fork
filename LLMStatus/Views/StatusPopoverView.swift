@@ -64,21 +64,20 @@ struct StatusPopoverView: View {
                     Divider()
                 }
 
-                // Subscription weekly usage
-                if !monitor.usage.visibleUsages.isEmpty {
-                    VStack(spacing: 8) {
-                        ForEach(monitor.usage.visibleUsages) { usage in
-                            UsageRowView(usage: usage)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-
-                    Divider()
-                }
-
-                // Provider list (enabled only)
+                // Subscription usage + provider list share one scroll area (the usage fold can grow)
                 ScrollView {
+                    if !monitor.usage.visibleUsages.isEmpty {
+                        VStack(spacing: 8) {
+                            ForEach(monitor.usage.visibleUsages) { usage in
+                                UsageRowView(usage: usage)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+
+                        Divider()
+                    }
+
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(monitor.enabledProviders) { provider in
                             ServiceRowView(provider: provider)
