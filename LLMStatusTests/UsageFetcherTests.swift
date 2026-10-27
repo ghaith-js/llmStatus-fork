@@ -160,4 +160,43 @@ struct UsageBreakdownTests {
         #expect(folded[0].share == 1)
         #expect(folded[0].children.map(\.name) == ["big", "Other projects"])
     }
+
+    @Test("Remote collector lines become host-prefixed records; bad lines are skipped")
+    func remoteParse() {
+        let body = [
+            #"{"d": 1793000000, "app": "Hermes", "project": "cron", "w": 12.5, "t": null, "p": null}"#,
+            #"{"d": 1793000001, "app": "service-a", "project": "service-a", "w": 3, "t": "th", "p": "parent"}"#,
+            #"{"d": 1793000002, "app": "Hermes", "project": "cron", "w": 0}"#,
+            "not json",
+        ].joined(separator: "\n")
+        let records = RemoteUsage.parse(Data(body.utf8), host: "my-vps")
+        #expect(records.count == 2)
+        #expect(records[0].app == "my-vps · Hermes")
+        #expect(records[0].project == "my-vps:/cron")
+        #expect(UsageBreakdown.projectLabels([records[0].project])[records[0].project] == "cron")
+        #expect(records[1].thread == "th")
+        #expect(records[1].parentThread == "parent")
+    }
+
+    @Test("Hosts that look like options or carry shell characters are refused", arguments: [
+        ("my-vps", true), ("user@host.example", true), ("-oProxyCommand=x", false), ("a;b", false), ("a b", false), ("", false)
+    ])
+    func hostValidation(value: (String, Bool)) {
+        #expect(RemoteUsage.isValidHost(value.0) == value.1)
+    }
+
+    @Test("Without a local account id nothing remote is counted")
+    func remoteNeedsAccount() {
+        let result = RemoteUsage.fetch(host: "my-vps", since: Date(), accountID: nil)
+        #expect(result.records.isEmpty)
+        #expect(result.error == "my-vps: local Codex account unknown")
+        #expect(RemoteUsage.fetch(host: "my-vps", since: Date(), accountID: "$(id)").error != nil)
+    }
+
+    @Test("Collector source errors are reported instead of counting as zero")
+    func remoteSourceErrors() {
+        let body = #"{"error": "Hermes: OperationalError"}"# + "\n" + #"{"d": 1, "app": "A", "project": "p", "w": 1}"#
+        #expect(RemoteUsage.sourceErrors(Data(body.utf8), host: "my-vps") == "my-vps: Hermes: OperationalError")
+        #expect(RemoteUsage.sourceErrors(Data(#"{"d": 1, "app": "A", "w": 1}"#.utf8), host: "my-vps") == nil)
+    }
 }

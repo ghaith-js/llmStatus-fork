@@ -104,7 +104,12 @@ struct UsageRowView: View {
                         .padding(.leading, 12)
                 }
             }
-            Text("Estimated from this Mac's logs (tokens). \(usage.kind.breakdownCaveat)")
+            ForEach(usage.breakdownErrors, id: \.self) { error in
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+            Text("Estimated from logs (tokens). \(usage.kind.breakdownCaveat)")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)

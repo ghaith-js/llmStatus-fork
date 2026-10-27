@@ -25,6 +25,16 @@ class AppSettings {
     private var watchedComponentsTick = 0
     @ObservationIgnored
     @AppStorage("hiddenUsage") var hiddenUsage: String = ""
+    /// Comma-separated SSH aliases whose Codex usage joins the breakdown (e.g. "my-vps").
+    @ObservationIgnored
+    @AppStorage("usageRemoteHosts") var usageRemoteHosts: String = ""
+
+    var usageRemoteHostList: [String] {
+        var seen = Set<String>()
+        return usageRemoteHosts.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
     private var hiddenUsageTick = 0
 
     var launchAtLogin: Bool {

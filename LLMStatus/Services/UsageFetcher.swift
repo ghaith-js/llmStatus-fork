@@ -33,7 +33,7 @@ struct SubscriptionUsage: Identifiable, Equatable {
         var breakdownCaveat: String {
             switch self {
             case .claude: "claude.ai (web, mobile) and other devices are not included."
-            case .codex: "Codex cloud tasks and other devices are not included."
+            case .codex: "Codex cloud tasks and machines not listed in Settings are not included."
             }
         }
 
@@ -52,8 +52,10 @@ struct SubscriptionUsage: Identifiable, Equatable {
     var plan: String?
     /// Set when usage could not be read; shown instead of the gauges.
     var error: String?
-    /// Estimated split of the weekly window by app, then project (local logs only).
+    /// Estimated split of the weekly window by app, then project (local logs, plus remote hosts for Codex).
     var breakdown: [UsageShare] = []
+    /// Remote hosts that could not be read for the breakdown.
+    var breakdownErrors: [String] = []
 
     var id: String { kind.rawValue }
 }
@@ -154,12 +156,19 @@ enum UsageFetcher {
         let rate_limit: RateLimit?
     }
 
-    static func fetchCodex() async -> SubscriptionUsage {
-        var usage = SubscriptionUsage(kind: .codex)
+    private static func codexTokens() -> CodexAuth.Tokens? {
         let home = ProcessInfo.processInfo.environment["CODEX_HOME"].map { URL(fileURLWithPath: $0) }
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex")
-        guard let raw = try? Data(contentsOf: home.appendingPathComponent("auth.json")),
-              let tokens = try? JSONDecoder().decode(CodexAuth.self, from: raw).tokens else {
+        guard let raw = try? Data(contentsOf: home.appendingPathComponent("auth.json")) else { return nil }
+        return try? JSONDecoder().decode(CodexAuth.self, from: raw).tokens
+    }
+
+    /// ChatGPT account of the local Codex login: remote hosts only count usage of this account.
+    static func codexAccountID() -> String? { codexTokens()?.account_id }
+
+    static func fetchCodex() async -> SubscriptionUsage {
+        var usage = SubscriptionUsage(kind: .codex)
+        guard let tokens = codexTokens() else {
             usage.error = "Sign in to Codex with ChatGPT"
             return usage
         }
@@ -258,6 +267,12 @@ enum UsageFetcher {
 class UsageMonitor {
     var usages: [SubscriptionUsage] = []
     var enabledKinds: Set<SubscriptionUsage.Kind> = Set(SubscriptionUsage.Kind.allCases)
+    /// SSH hosts (aliases from ~/.ssh/config) whose Codex usage joins the breakdown.
+    var remoteHosts: [String] = [] {
+        didSet { if remoteHosts != oldValue { generation += 1 } }
+    }
+    /// Bumped when settings change: a refresh started before must not publish its breakdown.
+    @ObservationIgnored private var generation = 0
     private var pollingTask: Task<Void, Never>?
 
     var visibleUsages: [SubscriptionUsage] {
@@ -283,18 +298,37 @@ class UsageMonitor {
             // so overlapping refreshes (poll, Refresh, toggle) never drop another row.
             for await result in group {
                 var result = result
-                result.breakdown = usages.first { $0.kind == result.kind }?.breakdown ?? []
+                if let previous = usages.first(where: { $0.kind == result.kind }) {
+                    result.breakdown = previous.breakdown
+                    result.breakdownErrors = previous.breakdownErrors
+                }
                 publish(result)
             }
         }
         // The log scan takes seconds on a cold cache: percentages show first, the split follows.
+        let started = generation
         for kind in kinds {
             guard let weekly = usages.first(where: { $0.kind == kind })?.weekly else { continue }
             let length = TimeInterval(weekly.seconds ?? 7 * 24 * 3600)
             let start = (weekly.resetsAt ?? Date()).addingTimeInterval(-length)
-            let shares = await UsageBreakdown.shared.shares(for: kind, since: start)
+            var remote = [RemoteUsage.Result]()
+            if kind == .codex, !remoteHosts.isEmpty {
+                let hosts = remoteHosts, account = UsageFetcher.codexAccountID()
+                // ssh blocks; run every host concurrently off the main actor.
+                remote = await withTaskGroup(of: RemoteUsage.Result.self) { group in
+                    for host in hosts {
+                        group.addTask { RemoteUsage.fetch(host: host, since: start, accountID: account) }
+                    }
+                    return await group.reduce(into: []) { $0.append($1) }
+                }
+            }
+            let shares = await UsageBreakdown.shared.shares(
+                for: kind, since: start, extra: remote.flatMap(\.records)
+            )
+            guard started == generation else { return }
             if let index = usages.firstIndex(where: { $0.kind == kind }) {
                 usages[index].breakdown = shares
+                usages[index].breakdownErrors = remote.compactMap(\.error)
             }
         }
     }

@@ -35,7 +35,8 @@ actor UsageBreakdown {
     /// Parsed records per provider and log file, reused while the file is unchanged.
     private var cache: [SubscriptionUsage.Kind: [String: (stamp: String, records: [Record])]] = [:]
 
-    func shares(for kind: SubscriptionUsage.Kind, since start: Date) -> [UsageShare] {
+    /// `extra` holds records gathered elsewhere (remote hosts); they join the local ones.
+    func shares(for kind: SubscriptionUsage.Kind, since start: Date, extra: [Record] = []) -> [UsageShare] {
         let files: [URL]
         let parse: (Data) -> [Record]
         switch kind {
@@ -67,6 +68,7 @@ actor UsageBreakdown {
             records += parsed
         }
         cache[kind] = fresh
+        records += extra
         if kind == .claude {
             records = Self.deduplicatedResponses(records)
         }

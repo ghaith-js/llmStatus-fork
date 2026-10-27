@@ -78,6 +78,15 @@ struct SettingsView: View {
                         }
                     ))
                 }
+
+                TextField("Codex on SSH hosts", text: $settings.usageRemoteHosts, prompt: Text("my-vps, other-host"))
+                    .onSubmit {
+                        monitor.usage.remoteHosts = settings.usageRemoteHostList
+                        Task { await monitor.usage.refresh() }
+                    }
+                Text("SSH aliases whose Codex usage (Hermes, CODEX_HOME folders) joins the breakdown. Read-only, token totals only.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             // Watched component per provider
@@ -117,6 +126,12 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onDisappear {
+            if monitor.usage.remoteHosts != settings.usageRemoteHostList {
+                monitor.usage.remoteHosts = settings.usageRemoteHostList
+                Task { await monitor.usage.refresh() }
+            }
+        }
         .onAppear {
             settings.refreshLaunchAtLoginStatus()
             orderedProviders = monitor.orderedProviders(by: settings.providerOrderIDs)
