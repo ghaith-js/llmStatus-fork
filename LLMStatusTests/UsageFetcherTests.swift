@@ -80,7 +80,7 @@ struct UsageBreakdownTests {
         let records = UsageBreakdown.parseCodex(Data(lines.joined(separator: "\n").utf8))
         // (3000 - 1000 cached) + 0.1 * 1000 + 5 * 100 = 2600 cumulative, minus the previous 1000
         #expect(records.map(\.weight) == [1000, 1600])
-        #expect(records.first?.app == "codex exec (scripts), subagents")
+        #expect(records.first?.app == "Codex CLI")
         #expect(records.first?.project == "/Users/x/llmStatus")
     }
 
@@ -171,8 +171,9 @@ struct UsageBreakdownTests {
         ].joined(separator: "\n")
         let records = RemoteUsage.parse(Data(body.utf8), host: "my-vps")
         #expect(records.count == 2)
-        #expect(records[0].app == "my-vps · Hermes")
+        #expect(records[0].app == "Hermes" && records[0].host == "my-vps")
         #expect(records[0].project == "my-vps:/cron")
+        #expect(records[1].app == "Codex CLI" && records[1].project == "my-vps:/service-a")
         #expect(UsageBreakdown.projectLabels([records[0].project])[records[0].project] == "cron")
         #expect(records[1].thread == "th")
         #expect(records[1].parentThread == "parent")
@@ -286,8 +287,8 @@ struct UsageBreakdownTests {
         let found = try #require(RemoteUsage.found(data))
         #expect(found.codexHomes == 2 && found.usageFiles == 1 && found.hermes == 0)
         let records = RemoteUsage.parse(data, host: "h").sorted { $0.date < $1.date }
-        #expect(records.map(\.app) == ["h · service-a", "h · service-b"])
-        #expect(records.map(\.project) == ["h:/project-a", "h:/daily"])
+        #expect(records.map(\.app) == ["Codex CLI", "Codex CLI"])
+        #expect(records.map(\.project) == ["h:/service-a · project-a", "h:/service-b · daily"])
         #expect(records.map(\.weight) == [1500, 160])
     }
 
@@ -338,15 +339,15 @@ struct UsageBreakdownTests {
         let srv = root.path + "/srv"
         let data = try run([[srv, 3]], paths: [srv + "/a/b/c/d/e/f"])
         let records = RemoteUsage.parse(data, host: "h")
-        #expect(records.filter { $0.app == "h · live" || $0.app == "h · backup" }.map(\.weight) == [1000])
-        #expect(records.filter { $0.app == "h · svc" }.map(\.weight) == [7, 7])
+        #expect(records.filter { $0.project.hasSuffix("project-a") }.map(\.weight) == [1000])
+        #expect(records.filter { $0.project == "h:/svc" }.map(\.weight) == [7, 7])
         #expect(RemoteUsage.sourceErrors(data, host: "h") == nil)
 
         // An account-less usage line is not counted when another login exists on the host.
         try write("srv/other/home/auth.json", #"{"tokens": {"account_id": "someone-else"}}"#)
         try write("srv/svc2/codex-usage.jsonl", #"{"ts": "2026-10-20T11:00:00Z", "input_tokens": 9}"#)
         let vetoed = RemoteUsage.parse(try run([[srv, 3]]), host: "h")
-        #expect(!vetoed.contains { $0.app == "h · svc2" })
+        #expect(!vetoed.contains { $0.project == "h:/svc2" })
     }
 }
 
@@ -452,5 +453,26 @@ struct UsageAccountsTests {
         let logins = RemoteAccountUsage.parseLogins(Data(body.utf8))
         #expect(logins.map(\.folder) == ["~/.claude", "/srv/app/codex-home", "~/.claude-work"])
         #expect(logins.map(\.detail) == ["Team · valid", "", "Team · expired"])
+    }
+
+    @Test("Codex split: delegate, this Mac's CLI, each SSH host with its apps, then the ChatGPT app")
+    func codexSections() {
+        let now = Date()
+        func record(_ app: String, _ project: String, _ weight: Double, host: String? = nil) -> UsageBreakdown.Record {
+            UsageBreakdown.Record(date: now, app: app, project: project, weight: weight, host: host)
+        }
+        let shares = UsageBreakdown.aggregate([
+            record("ChatGPT app", "/chat/new-chat", 30),
+            record("Hermes", "h:/cron", 5, host: "my-vps"),
+            record("Codex CLI", "h:/service-a · daily", 15, host: "my-vps"),
+            record("Codex CLI", "/w/project-a", 10),
+            record("Skill delegate", "/w/project-b", 40),
+        ])
+        #expect(shares.map(\.name) == ["Skill delegate", "Codex CLI", "my-vps · server", "ChatGPT app"])
+        #expect(shares[2].children.map(\.name) == ["Codex CLI", "Hermes"])
+        #expect(shares[2].children[0].children.map(\.name) == ["service-a · daily"])
+        #expect(abs(shares[2].share - 0.2) < 1e-9)
+        #expect(shares[3].children.isEmpty)
+        #expect(UsageBreakdown.codexApp("codex_exec") == "Codex CLI" && UsageBreakdown.codexApp("CodexDesktop") == "ChatGPT app")
     }
 }

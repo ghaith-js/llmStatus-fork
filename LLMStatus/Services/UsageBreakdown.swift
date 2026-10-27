@@ -25,6 +25,8 @@ actor UsageBreakdown {
         /// Codex thread id, and the thread that spawned it for subagents.
         var thread: String? = nil
         var parentThread: String? = nil
+        /// SSH host the usage was spent on; nil for this Mac.
+        var host: String? = nil
     }
 
     static let delegateApp = "Skill delegate"
@@ -124,17 +126,38 @@ actor UsageBreakdown {
 
     /// Projects past `maxProjects`, or negligible both overall (`minShare`) and within their app
     /// (under 10 %), fold into "Other projects". A small app still shows where its usage went.
+    /// Apps, then projects; usage spent on SSH hosts is grouped under each host first.
+    /// Known Codex sources keep a fixed order: Skill delegate, Codex CLI, other apps, hosts, ChatGPT app.
     static func aggregate(_ records: [Record], maxProjects: Int = 5, minShare: Double = 0.005) -> [UsageShare] {
         let total = records.reduce(0) { $0 + $1.weight }
         guard total > 0 else { return [] }
-        let byApp = Dictionary(grouping: records, by: \.app)
-        return byApp.map { app, appRecords in
+        let local = appShares(records.filter { $0.host == nil }, total: total, maxProjects: maxProjects, minShare: minShare)
+        let hosts = Dictionary(grouping: records.filter { $0.host != nil }, by: { $0.host! }).map { host, hostRecords in
+            let apps = appShares(hostRecords, total: total, maxProjects: maxProjects, minShare: minShare)
+            return UsageShare(name: "\(host) · server", share: apps.reduce(0) { $0 + $1.share }, children: apps)
+        }
+        func rank(_ share: UsageShare) -> Int {
+            switch share.name {
+            case delegateApp: 0
+            case codexCLI: 1
+            case chatGPTApp: 4
+            case _ where share.name.hasSuffix(" · server"): 3
+            default: 2
+            }
+        }
+        return (local + hosts).sorted { (rank($0), -$0.share) < (rank($1), -$1.share) }
+    }
+
+    private static func appShares(_ records: [Record], total: Double, maxProjects: Int, minShare: Double) -> [UsageShare] {
+        Dictionary(grouping: records, by: \.app).map { app, appRecords in
             let groups = Dictionary(grouping: appRecords, by: \.project)
             let labels = projectLabels(groups.keys)
             let byProject = groups
                 .map { UsageShare(name: labels[$0.key] ?? $0.key, share: $0.value.reduce(0) { $0 + $1.weight } / total) }
                 .sorted { $0.share > $1.share }
             let appShare = byProject.reduce(0) { $0 + $1.share }
+            // The ChatGPT app's "projects" are its chats: not worth listing.
+            guard app != chatGPTApp else { return UsageShare(name: app, share: appShare) }
             var projects = Array(byProject.prefix(maxProjects).filter { $0.share >= min(minShare, appShare / 10) })
             let rest = appShare - projects.reduce(0) { $0 + $1.share }
             if rest >= minShare / 10 { projects.append(UsageShare(name: "Other projects", share: rest)) }
@@ -205,7 +228,7 @@ actor UsageBreakdown {
             guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
                   let payload = object["payload"] as? [String: Any] else { return }
             if object["type"] as? String == "session_meta" {
-                app = codexApp(payload["originator"] as? String, subagent: payload["source"] is [String: Any])
+                app = codexApp(payload["originator"] as? String)
                 thread = payload["id"] as? String
                 let spawn = ((payload["source"] as? [String: Any])?["subagent"] as? [String: Any])?["thread_spawn"] as? [String: Any]
                 parentThread = spawn?["parent_thread_id"] as? String
@@ -229,15 +252,17 @@ actor UsageBreakdown {
         return records
     }
 
-    static func codexApp(_ originator: String?, subagent: Bool) -> String {
-        let name = switch originator {
-        case "codex_exec": "codex exec (scripts)"
-        case "codex_cli_rs": "Codex CLI"
+    static let codexCLI = "Codex CLI"
+    static let chatGPTApp = "ChatGPT app"
+
+    /// Subagents keep their parent's app: a CLI run's subagents are CLI usage.
+    static func codexApp(_ originator: String?) -> String {
+        switch originator {
+        case "codex_exec", "codex_cli_rs", nil: codexCLI
+        case "CodexDesktop", "Codex Desktop", "codex_desktop": chatGPTApp
         case "codex_vscode": "Codex VS Code"
         case let value?: value
-        case nil: "Codex"
         }
-        return subagent ? "\(name), subagents" : name
     }
 
     /// Thread ids started by the delegate skill (`~/.cache/codex-delegate/<run>/meta.json`).

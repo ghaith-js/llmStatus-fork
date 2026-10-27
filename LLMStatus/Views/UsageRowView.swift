@@ -91,17 +91,23 @@ struct UsageRowView: View {
         }
     }
 
-    /// Apps, then their projects, each with its estimated part of the weekly percentage.
+    /// Apps (or SSH hosts, then their apps), then projects, each with its estimated part of the weekly percentage.
     private func breakdown(weeklyPercent: Double) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            ForEach(usage.breakdown) { app in
-                shareRow(app.name, share: app.share, weeklyPercent: weeklyPercent)
+            ForEach(usage.breakdown) { top in
+                shareRow(top.name, share: top.share, weeklyPercent: weeklyPercent)
                     .font(.caption.weight(.medium))
-                ForEach(app.children) { project in
-                    shareRow(project.name, share: project.share, weeklyPercent: weeklyPercent)
-                        .font(.caption2)
+                ForEach(top.children) { child in
+                    shareRow(child.name, share: child.share, weeklyPercent: weeklyPercent)
+                        .font(child.children.isEmpty ? .caption2 : .caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                         .padding(.leading, 12)
+                    ForEach(child.children) { project in
+                        shareRow(project.name, share: project.share, weeklyPercent: weeklyPercent)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .padding(.leading, 24)
+                    }
                 }
             }
             ForEach(usage.breakdownErrors, id: \.self) { error in

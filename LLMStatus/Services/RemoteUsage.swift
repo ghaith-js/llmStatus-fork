@@ -134,14 +134,19 @@ enum RemoteUsage {
                   let app = object["app"] as? String,
                   let weight = (object["w"] as? NSNumber)?.doubleValue, weight > 0
             else { return nil }
+            // On a host: Hermes, or the Codex CLI used by services (named first) and by users.
+            let project = object["project"] as? String ?? "Unknown"
+            let isCLI = app != "Hermes"
+            let label = !isCLI || app == "Codex" || app == project ? project : "\(app) · \(project)"
             return UsageBreakdown.Record(
                 date: Date(timeIntervalSince1970: epoch),
-                app: "\(host) · \(app)",
+                app: isCLI ? UsageBreakdown.codexCLI : app,
                 // Remote paths must not merge with local ones of the same name.
-                project: "\(host):/\(object["project"] as? String ?? "Unknown")",
+                project: "\(host):/\(label)",
                 weight: weight,
                 thread: object["t"] as? String,
-                parentThread: object["p"] as? String
+                parentThread: object["p"] as? String,
+                host: host
             )
         }
     }
