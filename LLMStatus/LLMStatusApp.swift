@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         monitor.startPolling(interval: settings.refreshInterval)
         monitor.usage.enabledKinds = settings.enabledUsageKinds
-        monitor.usage.remoteHosts = settings.usageRemoteHostList
+        monitor.usage.remoteHosts = settings.remoteHosts
         monitor.usage.startPolling()
         network.start()
 

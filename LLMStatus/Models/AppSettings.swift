@@ -25,15 +25,31 @@ class AppSettings {
     private var watchedComponentsTick = 0
     @ObservationIgnored
     @AppStorage("hiddenUsage") var hiddenUsage: String = ""
-    /// Comma-separated SSH aliases whose Codex usage joins the breakdown (e.g. "my-vps").
+    /// SSH hosts whose Codex usage joins the breakdown, as JSON `[RemoteUsage.Host]`.
     @ObservationIgnored
-    @AppStorage("usageRemoteHosts") var usageRemoteHosts: String = ""
+    @AppStorage("usageSSHHosts") var usageSSHHosts: String = ""
+    /// Former comma-separated list of aliases, migrated on first read.
+    @ObservationIgnored
+    @AppStorage("usageRemoteHosts") var legacyUsageRemoteHosts: String = ""
+    private var remoteHostsTick = 0
 
-    var usageRemoteHostList: [String] {
-        var seen = Set<String>()
-        return usageRemoteHosts.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && seen.insert($0).inserted }
+    var remoteHosts: [RemoteUsage.Host] {
+        get {
+            _ = remoteHostsTick
+            if let hosts = try? JSONDecoder().decode([RemoteUsage.Host].self, from: Data(usageSSHHosts.utf8)) {
+                return hosts
+            }
+            var seen = Set<String>()
+            return legacyUsageRemoteHosts.split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty && seen.insert($0).inserted }
+                .map { RemoteUsage.Host(alias: $0) }
+        }
+        set {
+            usageSSHHosts = (try? String(decoding: JSONEncoder().encode(newValue), as: UTF8.self)) ?? ""
+            legacyUsageRemoteHosts = ""
+            remoteHostsTick += 1
+        }
     }
     private var hiddenUsageTick = 0
 

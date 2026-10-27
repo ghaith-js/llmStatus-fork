@@ -187,10 +187,11 @@ struct UsageBreakdownTests {
 
     @Test("Without a local account id nothing remote is counted")
     func remoteNeedsAccount() {
-        let result = RemoteUsage.fetch(host: "my-vps", since: Date(), accountID: nil)
+        let host = RemoteUsage.Host(alias: "my-vps")
+        let result = RemoteUsage.fetch(host: host, since: Date(), accountID: nil)
         #expect(result.records.isEmpty)
         #expect(result.error == "my-vps: local Codex account unknown")
-        #expect(RemoteUsage.fetch(host: "my-vps", since: Date(), accountID: "$(id)").error != nil)
+        #expect(RemoteUsage.fetch(host: host, since: Date(), accountID: "$(id)").error != nil)
     }
 
     @Test("Collector source errors are reported instead of counting as zero")
@@ -198,5 +199,153 @@ struct UsageBreakdownTests {
         let body = #"{"error": "Hermes: OperationalError"}"# + "\n" + #"{"d": 1, "app": "A", "project": "p", "w": 1}"#
         #expect(RemoteUsage.sourceErrors(Data(body.utf8), host: "my-vps") == "my-vps: Hermes: OperationalError")
         #expect(RemoteUsage.sourceErrors(Data(#"{"d": 1, "app": "A", "w": 1}"#.utf8), host: "my-vps") == nil)
+    }
+
+    @Test("The remote command carries no setting; extra folders must be absolute")
+    func remoteCommandIsStatic() {
+        #expect(!RemoteUsage.remoteCommand.contains("CONFIG"))
+        let host = RemoteUsage.Host(alias: "my-vps", extraPaths: ["/srv/apps", " /data ", "relative", "/a\nb", ""])
+        #expect(host.searchPaths == ["/srv/apps", "/data"])
+        let script = RemoteUsage.script(since: Date(timeIntervalSince1970: 100), accountID: "acct", paths: ["/x'; rm"])
+        let line = String(script.prefix { $0 != "\n" })
+        #expect(line.hasPrefix("CONFIG_B64 = \"") && !line.contains("'"))
+    }
+
+    @Test("Found summary reads counts, unreadable folders and truncation")
+    func foundSummary() {
+        let data = Data(#"{"found": {"codex": 2, "hermes": 1, "usage_files": 0, "unreadable": 3, "truncated": true}}"#.utf8)
+        let found = RemoteUsage.found(data)
+        #expect(found?.summary == "2 Codex homes · 1 Hermes · 3 unreadable without sudo · search stopped early")
+        #expect(RemoteUsage.Found().summary == "No Codex data found")
+        #expect(RemoteUsage.found(Data("{}".utf8)) == nil)
+    }
+
+    @Test("Hosts saved as a comma list are migrated, then stored as JSON")
+    func hostMigration() {
+        let defaults = UserDefaults.standard
+        let saved = (defaults.string(forKey: "usageSSHHosts"), defaults.string(forKey: "usageRemoteHosts"))
+        defer {
+            defaults.set(saved.0, forKey: "usageSSHHosts")
+            defaults.set(saved.1, forKey: "usageRemoteHosts")
+        }
+        defaults.set("", forKey: "usageSSHHosts")
+        defaults.set(" my-vps, other ,my-vps", forKey: "usageRemoteHosts")
+        let settings = AppSettings()
+        #expect(settings.remoteHosts.map(\.alias) == ["my-vps", "other"])
+        var hosts = settings.remoteHosts
+        hosts[1].enabled = false
+        settings.remoteHosts = hosts
+        #expect(settings.remoteHosts.map(\.enabled) == [true, false])
+        #expect(defaults.string(forKey: "usageRemoteHosts") == "")
+    }
+
+    @Test("Collector finds Codex data by content, keeps the local account and skips copies")
+    func collectorRun() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("collector-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        func write(_ path: String, _ text: String) throws {
+            let url = root.appendingPathComponent(path)
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        }
+        let auth = #"{"tokens": {"account_id": "acct"}}"#
+        let session = [
+            #"{"type": "session_meta", "payload": {"id": "th1", "cwd": "/work/project-a"}}"#,
+            #"{"type": "event_msg", "timestamp": "2026-10-20T10:00:00Z", "payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 1000, "cached_input_tokens": 0, "output_tokens": 100}}}}"#,
+        ].joined(separator: "\n")
+        // A service's CODEX_HOME, and a backup copy of the same session
+        try write("srv/service-a/state/auth.json", auth)
+        try write("srv/service-a/state/sessions/2026/10/20/rollout-1.jsonl", session)
+        try write("srv/backups/service-a/state/auth.json", auth)
+        try write("srv/backups/service-a/state/sessions/2026/10/20/rollout-1.jsonl", session)
+        // codex exec --ephemeral service: no account (counted, single account on host), another account (skipped)
+        try write("srv/service-b/codex-usage.jsonl", [
+            #"{"ts": "2026-10-20T11:00:00Z", "input_tokens": 200, "cached_input_tokens": 100, "output_tokens": 10, "project": "daily"}"#,
+            #"{"ts": 1792490400, "input_tokens": 999, "output_tokens": 999, "account_id": "someone-else"}"#,
+            #"{"ts": "2026-01-01T00:00:00Z", "input_tokens": 999, "output_tokens": 999}"#,
+            "not json",
+        ].joined(separator: "\n"))
+        try write("srv/node_modules/x/codex-usage.jsonl", #"{"ts": "2026-10-20T11:00:00Z", "input_tokens": 5}"#)
+
+        let since = ISO8601DateFormatter().date(from: "2026-10-19T00:00:00Z")!
+        let script = RemoteUsage.script(since: since, accountID: "acct", paths: [], roots: [[root.path + "/srv", 6]])
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        process.arguments = ["-I", "-"]
+        let input = Pipe(), output = Pipe()
+        process.standardInput = input
+        process.standardOutput = output
+        try process.run()
+        input.fileHandleForWriting.write(Data(script.utf8))
+        try input.fileHandleForWriting.close()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        #expect(RemoteUsage.sourceErrors(data, host: "h") == nil)
+        let found = try #require(RemoteUsage.found(data))
+        #expect(found.codexHomes == 2 && found.usageFiles == 1 && found.hermes == 0)
+        let records = RemoteUsage.parse(data, host: "h").sorted { $0.date < $1.date }
+        #expect(records.map(\.app) == ["h · service-a", "h · service-b"])
+        #expect(records.map(\.project) == ["h:/project-a", "h:/daily"])
+        #expect(records.map(\.weight) == [1500, 160])
+    }
+
+    @Test("Collector keeps the most complete copy, isolates bad lines, honours extra folders and login vetoes")
+    func collectorEdgeCases() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("collector-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        func write(_ path: String, _ text: String) throws {
+            let url = root.appendingPathComponent(path)
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        }
+        func session(_ input: Int) -> String {
+            [#"{"type": "session_meta", "payload": {"id": "th1", "cwd": "/work/project-a"}}"#,
+             #"{"type": "event_msg", "timestamp": "2026-10-20T10:00:00Z", "payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": \#(input), "output_tokens": 0}}}}"#]
+                .joined(separator: "\n")
+        }
+        let auth = #"{"tokens": {"account_id": "acct"}}"#
+        try write("srv/live/home/auth.json", auth)
+        try write("srv/live/home/sessions/rollout-1.jsonl", session(1000))
+        // Written last, so newest: a partial backup must not replace the live session.
+        try write("srv/backup/home/auth.json", auth)
+        try write("srv/backup/home/sessions/rollout-1.jsonl", session(100))
+        // Deeper than the default depth: reached only through an extra folder.
+        try write("srv/a/b/c/d/e/f/svc/codex-usage.jsonl", [
+            #"{"ts": "not a date", "input_tokens": 5, "account_id": "acct"}"#,
+            #"{"ts": "2026-10-20T11:00:00Z", "input_tokens": 7, "account_id": "acct", "id": "c1"}"#,
+            #"{"ts": "2026-10-20T11:00:00Z", "input_tokens": 7, "account_id": "acct", "id": "c2"}"#,
+        ].joined(separator: "\n"))
+
+        func run(_ roots: [[Any]], paths: [String] = []) throws -> Data {
+            let since = ISO8601DateFormatter().date(from: "2026-10-19T00:00:00Z")!
+            let script = RemoteUsage.script(since: since, accountID: "acct", paths: paths, roots: roots)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            process.arguments = ["-I", "-"]
+            let input = Pipe(), output = Pipe()
+            process.standardInput = input
+            process.standardOutput = output
+            try process.run()
+            input.fileHandleForWriting.write(Data(script.utf8))
+            try input.fileHandleForWriting.close()
+            defer { process.waitUntilExit() }
+            return output.fileHandleForReading.readDataToEndOfFile()
+        }
+
+        let srv = root.path + "/srv"
+        let data = try run([[srv, 3]], paths: [srv + "/a/b/c/d/e/f"])
+        let records = RemoteUsage.parse(data, host: "h")
+        #expect(records.filter { $0.app == "h · live" || $0.app == "h · backup" }.map(\.weight) == [1000])
+        #expect(records.filter { $0.app == "h · svc" }.map(\.weight) == [7, 7])
+        #expect(RemoteUsage.sourceErrors(data, host: "h") == nil)
+
+        // An account-less usage line is not counted when another login exists on the host.
+        try write("srv/other/home/auth.json", #"{"tokens": {"account_id": "someone-else"}}"#)
+        try write("srv/svc2/codex-usage.jsonl", #"{"ts": "2026-10-20T11:00:00Z", "input_tokens": 9}"#)
+        let vetoed = RemoteUsage.parse(try run([[srv, 3]]), host: "h")
+        #expect(!vetoed.contains { $0.app == "h · svc2" })
     }
 }

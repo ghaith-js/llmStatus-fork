@@ -267,10 +267,19 @@ enum UsageFetcher {
 class UsageMonitor {
     var usages: [SubscriptionUsage] = []
     var enabledKinds: Set<SubscriptionUsage.Kind> = Set(SubscriptionUsage.Kind.allCases)
-    /// SSH hosts (aliases from ~/.ssh/config) whose Codex usage joins the breakdown.
-    var remoteHosts: [String] = [] {
+    /// SSH hosts whose Codex usage joins the breakdown (disabled ones are kept but not read).
+    var remoteHosts: [RemoteUsage.Host] = [] {
         didSet { if remoteHosts != oldValue { generation += 1 } }
     }
+    /// Last check per host alias, shown in Settings.
+    var hostStatus: [String: RemoteUsage.Status] = [:]
+    /// Reads in flight per alias (poll and "Test" can overlap).
+    private var inFlight: [String: Int] = [:]
+    /// Latest request per alias: an older read finishing later must not overwrite its status.
+    @ObservationIgnored private var latestRequest: [String: Int] = [:]
+
+    /// Aliases being read right now.
+    var checkingHosts: Set<String> { Set(inFlight.filter { $0.value > 0 }.keys) }
     /// Bumped when settings change: a refresh started before must not publish its breakdown.
     @ObservationIgnored private var generation = 0
     private var pollingTask: Task<Void, Never>?
@@ -312,15 +321,8 @@ class UsageMonitor {
             let length = TimeInterval(weekly.seconds ?? 7 * 24 * 3600)
             let start = (weekly.resetsAt ?? Date()).addingTimeInterval(-length)
             var remote = [RemoteUsage.Result]()
-            if kind == .codex, !remoteHosts.isEmpty {
-                let hosts = remoteHosts, account = UsageFetcher.codexAccountID()
-                // ssh blocks; run every host concurrently off the main actor.
-                remote = await withTaskGroup(of: RemoteUsage.Result.self) { group in
-                    for host in hosts {
-                        group.addTask { RemoteUsage.fetch(host: host, since: start, accountID: account) }
-                    }
-                    return await group.reduce(into: []) { $0.append($1) }
-                }
+            if kind == .codex {
+                remote = await fetchRemote(remoteHosts.filter(\.enabled), since: start)
             }
             let shares = await UsageBreakdown.shared.shares(
                 for: kind, since: start, extra: remote.flatMap(\.records)
@@ -331,6 +333,37 @@ class UsageMonitor {
                 usages[index].breakdownErrors = remote.compactMap(\.error)
             }
         }
+    }
+
+    /// Reads one host now (Settings "Test"), updating its status only.
+    @MainActor
+    func check(_ host: RemoteUsage.Host) async {
+        _ = await fetchRemote([host], since: Date().addingTimeInterval(-7 * 24 * 3600))
+    }
+
+    @MainActor
+    private func fetchRemote(_ hosts: [RemoteUsage.Host], since start: Date) async -> [RemoteUsage.Result] {
+        guard !hosts.isEmpty else { return [] }
+        let account = UsageFetcher.codexAccountID()
+        var tickets = [String: Int]()
+        for alias in hosts.map(\.alias) {
+            latestRequest[alias, default: 0] += 1
+            tickets[alias] = latestRequest[alias]
+            inFlight[alias, default: 0] += 1
+        }
+        defer { for alias in hosts.map(\.alias) { inFlight[alias, default: 1] -= 1 } }
+        // ssh blocks; run every host concurrently off the main actor.
+        let results = await withTaskGroup(of: (String, RemoteUsage.Result).self) { group in
+            for host in hosts {
+                group.addTask { (host.alias, RemoteUsage.fetch(host: host, since: start, accountID: account)) }
+            }
+            return await group.reduce(into: []) { $0.append($1) }
+        }
+        let current = Set(remoteHosts.map(\.alias))
+        for (alias, result) in results where current.contains(alias) && latestRequest[alias] == tickets[alias] {
+            hostStatus[alias] = RemoteUsage.Status(result)
+        }
+        return results.map(\.1)
     }
 
     private func publish(_ usage: SubscriptionUsage) {
