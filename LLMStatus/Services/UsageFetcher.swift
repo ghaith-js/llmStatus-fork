@@ -64,6 +64,10 @@ struct SubscriptionUsage: Identifiable, Equatable {
     var tokenExpired = false
     /// When the limits shown were read; older than now when they are kept through an error.
     var fetchedAt: Date?
+    /// Last attempt, successful or not.
+    var checkedAt: Date?
+    /// Set on HTTP 429: automatic refreshes leave the account alone until then.
+    var retryAfter: Date?
     /// `UsageAccount.source` the row was read from: a row fetched before the account was
     /// pointed elsewhere (another host, folder or kind) is never shown under it.
     var source: String?
@@ -230,6 +234,13 @@ enum UsageFetcher {
                 usage.tokenExpired = true
                 return nil
             }
+            if code == 429 {
+                let wait = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
+                FileLogger.shared.warning("HTTP 429, retry after \(wait.map { "\(Int($0)) s" } ?? "unknown")", source: source)
+                usage.error = "Rate limited (429)"
+                usage.retryAfter = Date().addingTimeInterval(min(max(wait ?? UsageMonitor.rateLimitPause, 60), 3600))
+                return nil
+            }
             guard (200...299).contains(code) else {
                 FileLogger.shared.warning("HTTP \(code)", source: source)
                 usage.error = "Usage unavailable (HTTP \(code))"
@@ -302,6 +313,8 @@ class UsageMonitor {
     @ObservationIgnored private var generation = 0
     private var pollingTask: Task<Void, Never>?
     @ObservationIgnored private var lastRefresh: Date?
+    /// Pause after an HTTP 429 that gives no Retry-After.
+    static let rateLimitPause: TimeInterval = 300
 
     /// Opening the popover shows fresh limits: refreshed when the last read is a minute old,
     /// or when a token was expired (the CLI may have renewed it since).
@@ -339,13 +352,19 @@ class UsageMonitor {
     }
 
     @MainActor
-    func refresh() async {
+    /// `force` (the Refresh button) also retries accounts paused after a rate limit.
+    func refresh(force: Bool = false) async {
         lastRefresh = Date()
         let accounts = enabledAccounts
         usages.removeAll { usage in !accounts.contains { $0.id == usage.accountID && $0.source == usage.source } }
+        // A rate-limited account is left alone until its pause ends: polling it again only extends the limit.
+        let now = Date()
+        let due = accounts.filter { account in
+            force || (usages.first { $0.accountID == account.id }?.retryAfter).map { $0 <= now } ?? true
+        }
         // A slow SSH host must not hold this Mac's rows or their breakdown back.
-        async let remote: Void = fetch(accounts.filter { !$0.isLocal })
-        await fetch(accounts.filter(\.isLocal))
+        async let remote: Void = fetch(due.filter { !$0.isLocal })
+        await fetch(due.filter(\.isLocal))
         await refreshBreakdowns(accounts)
         await remote
     }
@@ -366,7 +385,8 @@ class UsageMonitor {
             // so overlapping refreshes (poll, Refresh, toggle) never drop another row.
             for await result in group {
                 var result = result
-                if result.error == nil { result.fetchedAt = Date() }
+                result.checkedAt = Date()
+                if result.error == nil { result.fetchedAt = result.checkedAt }
                 if let previous = usages.first(where: { $0.id == result.id && $0.source == result.source }) {
                     result.breakdown = previous.breakdown
                     result.breakdownErrors = previous.breakdownErrors

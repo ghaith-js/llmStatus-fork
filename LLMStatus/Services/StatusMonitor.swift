@@ -120,7 +120,7 @@ class StatusMonitor {
             providers[index].currentStatus = .unknown
             providers[index].statusDetail = "Refreshing..."
         }
-        async let usageRefresh: Void = usage.refresh()
+        async let usageRefresh: Void = usage.refresh(force: true)
         await fetchAllStatuses()
         await usageRefresh
         isRefreshing = false

@@ -80,6 +80,11 @@ enum RemoteAccountUsage {
             usage.error = "Session expired on \(host), run \(cli) there"
             return usage
         }
+        if status == 429 {
+            usage.error = "Rate limited (429)"
+            usage.retryAfter = Date().addingTimeInterval(UsageMonitor.rateLimitPause)
+            return usage
+        }
         guard (200...299).contains(status), let body = object["body"],
               let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
             usage.error = "Usage unavailable (HTTP \(status))"

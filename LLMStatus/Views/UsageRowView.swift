@@ -70,11 +70,7 @@ struct UsageRowView: View {
             }
 
             HStack(spacing: 8) {
-                if let error = usage.error {
-                    Label(Self.errorLine(error, keptFrom: usage.weekly == nil ? nil : usage.fetchedAt), systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                        .lineLimit(2)
-                } else if let resetsAt = usage.weekly?.resetsAt {
+                if let resetsAt = usage.weekly?.resetsAt {
                     Text("Resets \(Self.resetLabel(resetsAt))")
                 }
                 Spacer()
@@ -88,6 +84,15 @@ struct UsageRowView: View {
             }
             .font(.caption2)
             .foregroundStyle(.secondary)
+
+            // On its own line: the error, its last attempt and the age of the limits still shown.
+            if let error = usage.error {
+                Label(Self.errorLine(error, keptFrom: usage.weekly == nil ? nil : usage.fetchedAt, triedAt: usage.checkedAt),
+                      systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if isExpanded, let weekly = usage.weekly {
                 breakdown(weeklyPercent: weekly.percent)
@@ -152,10 +157,13 @@ struct UsageRowView: View {
         }
     }
 
-    /// The error, and when the limits still shown were read.
-    static func errorLine(_ error: String, keptFrom date: Date?) -> String {
-        guard let date else { return error }
-        return "\(error) · as of \(date.formatted(date: .omitted, time: .shortened))"
+    /// The error, when it was last tried, and when the limits still shown were read.
+    static func errorLine(_ error: String, keptFrom date: Date?, triedAt: Date? = nil) -> String {
+        let time = { (date: Date) in date.formatted(date: .omitted, time: .shortened) }
+        var line = error
+        if let triedAt { line += " · tried \(time(triedAt))" }
+        if let date { line += ", data from \(time(date))" }
+        return line
     }
 
     /// "5h: 5% · resets in 3h 45m". An unused window has no reset time yet: its clock starts

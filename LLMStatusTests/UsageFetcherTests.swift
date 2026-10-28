@@ -33,7 +33,9 @@ struct UsageFetcherTests {
     func keptLimits() {
         let date = Date(timeIntervalSince1970: 1_793_000_000)
         let line = UsageRowView.errorLine("Token expired", keptFrom: date)
-        #expect(line.hasPrefix("Token expired · as of "))
+        #expect(line.hasPrefix("Token expired, data from "))
+        let tried = UsageRowView.errorLine("Rate limited", keptFrom: date, triedAt: date.addingTimeInterval(180))
+        #expect(tried.hasPrefix("Rate limited · tried ") && tried.contains(", data from "))
         #expect(UsageRowView.errorLine("Token expired", keptFrom: nil) == "Token expired")
     }
 
