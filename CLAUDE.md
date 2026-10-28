@@ -38,7 +38,7 @@ pkill LLMStatus
 - `AppSettings` (@Observable + @AppStorage) — persists user preferences
 - `NetworkMonitor` (NWPathMonitor) — tracks connectivity
 
-**Menu bar:** `StatusBarController` manages `NSStatusItem` with left-click (popover) and right-click (context menu). Icon updates via 1s Timer polling. Next to the cloud, Settings > General "Menu bar shows" picks a `MenuBarIndicator` (status only, busiest subscription, usage past a threshold, 5h window and countdown, weekly and 5h, a mini gauge per subscription, every subscription as text); `MenuBarContent` turns the usage sections into pieces, `StatusBarController.draw` puts them on the button. Options: hide the cloud with usage (it comes back on any provider issue), and a percent next to each mini gauge. The cloud logo (`Resources/MenuBarIcon.pdf`) is tinted with the provider's status color using `sourceAtop` blend.
+**Menu bar:** `StatusBarController` manages `NSStatusItem` with left-click (popover) and right-click (context menu). Icon updates via 1s Timer polling. Next to the cloud, Settings > Menu bar (`MenuBarSettingsSection`: the selected template with its options, then every template drawn live through `MenuBarPreview`) picks a `MenuBarIndicator` (status only, busiest subscription, usage past a threshold, 5h window and countdown, weekly and 5h, a mini gauge per subscription, every subscription as text); `MenuBarContent` turns the usage sections into pieces, `StatusBarController.draw` puts them on the button. Options: hide the cloud with usage (it comes back on any provider issue), and a percent next to each mini gauge. The cloud logo (`Resources/MenuBarIcon.pdf`) is tinted with the provider's status color using `sourceAtop` blend.
 
 **Fetchers** — Six strategies, selected per provider via `FetcherType` enum:
 - `StatusFetcher` — Atlassian Statuspage JSON API (Anthropic, OpenAI, Cursor, DeepSeek, Moonshot)
@@ -54,7 +54,7 @@ All fetchers use `HTTPClient` (shared URLSession, 10s/15s timeouts) except XAIFe
 
 **Data flow:** `StatusMonitor.fetchAllStatuses()` → TaskGroup dispatches all fetchers concurrently → results update `providers` array → if watched component is set, overrides provider status → notifications sent for active incidents/recovery.
 
-**UI:** Single `StatusPopoverView` toggles between the main page (subscription usage, then a two-column "Status" gallery of `ProviderCardView`: short name, status icon, and the impacted components or incidents when not operational), a `ProviderDetailView` (components, active incidents, status page link; opened by tapping a card) and `SettingsView` (segmented tabs: General, Providers with focus components, Usage with SSH hosts). No separate window/view controllers.
+**UI:** Single `StatusPopoverView` toggles between the main page (subscription usage, then a two-column "Status" gallery of `ProviderCardView`: short name, status icon, and the impacted components or incidents when not operational), a `ProviderDetailView` (components, active incidents, status page link; opened by tapping a card) and `SettingsView` (segmented tabs: General, Providers with focus components, Usage with SSH hosts, Menu bar). No separate window/view controllers.
 
 ## Key patterns
 

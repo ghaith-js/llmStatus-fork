@@ -9,12 +9,12 @@ enum MenuBarIndicator: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .status: "Status only"
-        case .busiest: "Busiest subscription"
-        case .alert: "Status, usage past a threshold"
-        case .session: "5h window and countdown"
+        case .busiest: "Busiest"
+        case .alert: "Alert past a threshold"
+        case .session: "5h countdown"
         case .weeklyAndSession: "Weekly and 5h"
-        case .gauges: "Mini gauge per subscription"
-        case .allAccounts: "Every subscription as text"
+        case .gauges: "Mini gauges"
+        case .allAccounts: "All as text"
         }
     }
 
