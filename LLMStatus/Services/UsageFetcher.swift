@@ -60,6 +60,10 @@ struct SubscriptionUsage: Identifiable, Equatable {
     var accountID: UUID?
     /// The account's name in Settings; the kind's name when unset.
     var title: String?
+    /// The login's access token is expired: the CLI renews it on its next request.
+    var tokenExpired = false
+    /// When the limits shown were read; older than now when they are kept through an error.
+    var fetchedAt: Date?
     /// `UsageAccount.source` the row was read from: a row fetched before the account was
     /// pointed elsewhere (another host, folder or kind) is never shown under it.
     var source: String?
@@ -113,7 +117,9 @@ enum UsageFetcher {
         }
         usage.plan = oauth.subscriptionType?.capitalized
         if let expiresAt = oauth.expiresAt, Date(timeIntervalSince1970: expiresAt / 1000) < Date() {
-            usage.error = "Token expired, open Claude Code"
+            // Claude Code renews its short-lived token only when it sends a request.
+            usage.error = "Token expired: Claude Code renews it on its next request"
+            usage.tokenExpired = true
             return usage
         }
         var request = URLRequest(url: claudeURL)
@@ -221,6 +227,7 @@ enum UsageFetcher {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             if code == 401 || code == 403 {
                 usage.error = "Session expired, \(relogin)"
+                usage.tokenExpired = true
                 return nil
             }
             guard (200...299).contains(code) else {
@@ -294,6 +301,15 @@ class UsageMonitor {
     /// Bumped when settings change: a refresh started before must not publish its breakdown.
     @ObservationIgnored private var generation = 0
     private var pollingTask: Task<Void, Never>?
+    @ObservationIgnored private var lastRefresh: Date?
+
+    /// Opening the popover shows fresh limits: refreshed when the last read is a minute old,
+    /// or when a token was expired (the CLI may have renewed it since).
+    @MainActor
+    func refreshIfStale() async {
+        let stale = lastRefresh.map { Date().timeIntervalSince($0) > 60 } ?? true
+        if stale || usages.contains(where: \.tokenExpired) { await refresh() }
+    }
 
     var enabledAccounts: [UsageAccount] { groups.flatMap(\.accounts).filter(\.enabled) }
 
@@ -315,13 +331,16 @@ class UsageMonitor {
         pollingTask = Task {
             while !Task.isCancelled {
                 await refresh()
-                try? await Task.sleep(for: .seconds(interval))
+                // An expired token is renewed by the CLI at any moment: check again soon (keychain only).
+                let wait = usages.contains(where: \.tokenExpired) ? min(interval, 60) : interval
+                try? await Task.sleep(for: .seconds(wait))
             }
         }
     }
 
     @MainActor
     func refresh() async {
+        lastRefresh = Date()
         let accounts = enabledAccounts
         usages.removeAll { usage in !accounts.contains { $0.id == usage.accountID && $0.source == usage.source } }
         // A slow SSH host must not hold this Mac's rows or their breakdown back.
@@ -347,9 +366,17 @@ class UsageMonitor {
             // so overlapping refreshes (poll, Refresh, toggle) never drop another row.
             for await result in group {
                 var result = result
+                if result.error == nil { result.fetchedAt = Date() }
                 if let previous = usages.first(where: { $0.id == result.id && $0.source == result.source }) {
                     result.breakdown = previous.breakdown
                     result.breakdownErrors = previous.breakdownErrors
+                    // An expired token or a network hiccup keeps the last limits read, dated.
+                    if result.weekly == nil, previous.weekly != nil {
+                        result.weekly = previous.weekly
+                        result.session = previous.session
+                        result.plan = result.plan ?? previous.plan
+                        result.fetchedAt = previous.fetchedAt
+                    }
                 }
                 publish(result)
             }

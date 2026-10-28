@@ -15,6 +15,28 @@ struct UsageFetcherTests {
         #expect(abs(usage.weekly!.resetsAt!.timeIntervalSince(expected) - 0.196) < 0.001)
     }
 
+    @Test("The short window shows its countdown to reset, rounded up to the minute")
+    func sessionCountdown() {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        func window(_ seconds: TimeInterval?) -> SubscriptionUsage.Window {
+            .init(percent: 5, resetsAt: seconds.map { now.addingTimeInterval($0) }, seconds: 5 * 3600)
+        }
+        #expect(UsageRowView.sessionLabel(window(3 * 3600 + 44 * 60 + 10), now: now) == "5h: 5% · resets in 3h 45m")
+        #expect(UsageRowView.sessionLabel(window(30), now: now) == "5h: 5% · resets in 1m")
+        #expect(UsageRowView.sessionLabel(window(-10), now: now) == "5h: 5%")
+        #expect(UsageRowView.sessionLabel(window(nil), now: now) == "5h: 5%")
+        let idle = SubscriptionUsage.Window(percent: 0, resetsAt: nil, seconds: 5 * 3600)
+        #expect(UsageRowView.sessionLabel(idle, now: now) == "5h: 0% · starts on next use")
+    }
+
+    @Test("An error keeps the last limits on screen, dated")
+    func keptLimits() {
+        let date = Date(timeIntervalSince1970: 1_793_000_000)
+        let line = UsageRowView.errorLine("Token expired", keptFrom: date)
+        #expect(line.hasPrefix("Token expired · as of "))
+        #expect(UsageRowView.errorLine("Token expired", keptFrom: nil) == "Token expired")
+    }
+
     @Test("Claude response without a weekly limit is an error, not 0 %")
     func claudeMissing() {
         let usage = UsageFetcher.parseClaude(Data(#"{"five_hour":null,"seven_day":null}"#.utf8))

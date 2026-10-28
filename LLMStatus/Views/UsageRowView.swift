@@ -71,15 +71,19 @@ struct UsageRowView: View {
 
             HStack(spacing: 8) {
                 if let error = usage.error {
-                    Label(error, systemImage: "exclamationmark.triangle")
+                    Label(Self.errorLine(error, keptFrom: usage.weekly == nil ? nil : usage.fetchedAt), systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
+                        .lineLimit(2)
                 } else if let resetsAt = usage.weekly?.resetsAt {
                     Text("Resets \(Self.resetLabel(resetsAt))")
                 }
                 Spacer()
                 if let session = usage.session {
-                    Text("\(session.label): \(Int(session.percent.rounded()))%")
-                        .monospacedDigit()
+                    // The short window resets within hours: a countdown, kept current.
+                    TimelineView(.periodic(from: .now, by: 30)) { context in
+                        Text(Self.sessionLabel(session, now: context.date))
+                            .monospacedDigit()
+                    }
                 }
             }
             .font(.caption2)
@@ -146,6 +150,23 @@ struct UsageRowView: View {
         case ..<10: String(format: "%.1f%%", value)
         default: "\(Int(value.rounded()))%"
         }
+    }
+
+    /// The error, and when the limits still shown were read.
+    static func errorLine(_ error: String, keptFrom date: Date?) -> String {
+        guard let date else { return error }
+        return "\(error) · as of \(date.formatted(date: .omitted, time: .shortened))"
+    }
+
+    /// "5h: 5% · resets in 3h 45m". An unused window has no reset time yet: its clock starts
+    /// with the next message. No countdown once the reset time has passed.
+    static func sessionLabel(_ window: SubscriptionUsage.Window, now: Date = Date()) -> String {
+        let used = "\(window.label): \(Int(window.percent.rounded()))%"
+        guard let resetsAt = window.resetsAt else { return window.percent == 0 ? "\(used) · starts on next use" : used }
+        guard resetsAt > now else { return used }
+        let minutes = Int((resetsAt.timeIntervalSince(now) / 60).rounded(.up))
+        let left = minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
+        return "\(used) · resets in \(left)"
     }
 
     static func color(for percent: Double) -> Color {
