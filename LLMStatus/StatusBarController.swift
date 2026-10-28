@@ -3,6 +3,8 @@ import SwiftUI
 
 extension Notification.Name {
     static let showSettings = Notification.Name("showSettings")
+    /// Posted right before the popover opens: its scroll areas size themselves to their content again.
+    static let popoverWillOpen = Notification.Name("popoverWillOpen")
 }
 
 /// Manages the NSStatusItem with left-click (popover) and right-click (context menu).
@@ -49,8 +51,10 @@ final class StatusBarController: NSObject {
                 m.disabledProviderIDs = s.disabledProviderIDs
             }
 
-        popover.contentViewController = NSHostingController(rootView: view)
-        popover.contentSize = NSSize(width: 320, height: 400)
+        // The popover takes the size of its content (see FittingScrollView) instead of a fixed height.
+        let hosting = NSHostingController(rootView: view)
+        hosting.sizingOptions = .preferredContentSize
+        popover.contentViewController = hosting
         popover.behavior = .transient
     }
 
@@ -75,6 +79,7 @@ final class StatusBarController: NSObject {
         if popover.isShown {
             popover.performClose(nil)
         } else if let button = statusItem.button {
+            NotificationCenter.default.post(name: .popoverWillOpen, object: nil)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
@@ -110,6 +115,7 @@ final class StatusBarController: NSObject {
     @objc private func settingsAction() {
         // Open popover then notify it to show settings
         if !popover.isShown, let button = statusItem.button {
+            NotificationCenter.default.post(name: .popoverWillOpen, object: nil)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }

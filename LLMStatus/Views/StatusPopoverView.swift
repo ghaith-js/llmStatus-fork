@@ -46,7 +46,9 @@ struct StatusPopoverView: View {
 
                 Divider()
 
+                // Forms scroll on their own: give them the room the screen allows.
                 SettingsView(settings: settings, monitor: monitor)
+                    .frame(height: min(640, FittingScrollView<EmptyView>.maxHeight))
             } else if let provider = selectedProvider {
                 HStack {
                     Button {
@@ -69,7 +71,7 @@ struct StatusPopoverView: View {
 
                 Divider()
 
-                ScrollView {
+                FittingScrollView {
                     ProviderDetailView(provider: provider)
                         .padding(12)
                 }
@@ -104,7 +106,8 @@ struct StatusPopoverView: View {
                 }
 
                 // Subscription usage + provider list share one scroll area (the usage fold can grow)
-                ScrollView {
+                FittingScrollView {
+                    VStack(spacing: 0) {
                     let sections = monitor.usage.sections
                     if !sections.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -139,6 +142,7 @@ struct StatusPopoverView: View {
                         }
                     }
                     .padding(12)
+                    }
                 }
 
                 Divider()
