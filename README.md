@@ -1,8 +1,10 @@
 # LLM Status
 
-A lightweight macOS menu bar app that monitors the operational status of major LLM providers in real time. One glance at the menu bar tells you whether the model you depend on is healthy — or whether the bug you're chasing is on their side.
+A lightweight macOS menu bar app that monitors the operational status of major LLM providers in real time, and how much of your Claude and ChatGPT (Codex) subscriptions you have used. One glance at the menu bar tells you whether the model you depend on is healthy, or whether the bug you're chasing is on their side.
 
-![LLM Status popover](docs/screenshot.png)
+<p align="center"><img src="docs/popover.png" width="320" alt="LLM Status popover: subscription usage by group, then the provider status gallery"></p>
+
+<sub>Screenshots use demo data.</sub>
 
 ## Supported providers
 
@@ -10,19 +12,37 @@ Anthropic (Claude), OpenAI, Cursor, Google (Gemini), Mistral AI, DeepSeek, Moons
 
 ## Features
 
-- **Menu bar indicator** — cloud icon tinted by aggregated severity (green / yellow / orange / red).
-- **Status gallery** — providers in two columns, each card naming the impacted components or incidents when something is wrong.
-- **Component drill-down** — tap any provider to see per-component status (e.g. Claude API vs Claude Code, OpenAI Chat Completions vs Sora).
-- **Active incident surfacing** — incidents in `investigating` / `identified` / `monitoring` phases are shown inline, even when the provider's global indicator is still green.
-- **Watched component** — pin a single component per provider so the menu bar reflects only what you care about.
-- **Notifications** — opt-in alerts for incident start and recovery, scoped to one provider or all.
+### Provider status
+
+- **Menu bar indicator**: cloud icon tinted by aggregated severity (green / yellow / orange / red).
+- **Status gallery**: providers in two columns, each card naming the impacted components or incidents when something is wrong.
+- **Component drill-down**: tap any provider to see per-component status (e.g. Claude API vs Claude Code, OpenAI Chat Completions vs Codex) and its active incidents.
+- **Active incident surfacing**: incidents in `investigating` / `identified` / `monitoring` phases are shown inline, even when the provider's global indicator is still green.
+- **Watched component**: pin a single component per provider so the menu bar reflects only what you care about.
+- **Notifications**: opt-in alerts for incident start and recovery, scoped to one provider or all.
 - **Disable / reorder** providers via Settings.
-- **Subscription usage** — weekly and 5-hour limits of your Claude and ChatGPT (Codex) plans, read from the local Claude Code and Codex logins, with an estimated split by app and project.
-- **Several subscriptions** — add other Claude or Codex accounts under **Settings → Usage**, each with its own name, grouped (e.g. "Personal", "Client A"). An account is this Mac's login or a login on an SSH host: there, a read-only Python script calls the usage API on the host itself, so the login token never leaves it, and returns the limits only. Tokens are never refreshed; an expired one shows a hint to run the CLI on that host.
+
+### Subscription usage
+
+- **Weekly and 5-hour limits** of your Claude and ChatGPT (Codex) plans, read from the local Claude Code and Codex logins, with the time left before the 5-hour window resets. Tokens are never refreshed; an expired one keeps the last limits and shows a hint to run the CLI. A rate-limited account pauses for a few minutes; **Refresh** retries it right away.
+- **Split by app and project**: unfold a subscription for an estimate of what consumed it, from local logs. Codex sources keep a fixed order: the `delegate` skill, Codex CLI on this Mac (by project), each SSH host (Hermes and Codex CLI, then projects), the ChatGPT app.
+- **Several subscriptions**: add other Claude or Codex accounts under **Settings → Usage**, each with its own name, in named groups (e.g. "Personal", "Client A"). An account is this Mac's login or a login on an SSH host: there, a read-only Python script calls the usage API on the host itself, so the login token never leaves it, and returns the limits only. The editor lists the Claude and Codex logins found on the host.
+- **Menu bar templates**: next to the cloud, show the busiest subscription, an alert past a threshold, the 5-hour window with its countdown, weekly and 5-hour, a mini gauge per subscription or every subscription as text. **Settings → Menu bar** draws each template live with your usage; the cloud can be hidden (it comes back on any provider issue) and each gauge can carry its percent.
+
+<table>
+  <tr>
+    <td><img src="docs/usage-breakdown.png" width="320" alt="Codex usage split by app, host and project"></td>
+    <td><img src="docs/provider-detail.png" width="320" alt="OpenAI components and active incident"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/settings-usage.png" width="320" alt="Settings, Usage tab: account groups and SSH hosts"></td>
+    <td><img src="docs/settings-menu-bar.png" width="320" alt="Settings, Menu bar tab: selected template and all templates"></td>
+  </tr>
+</table>
 
 ## Subscription usage on servers (optional)
 
-Codex usage spent on other machines (a VPS running agents or services that call `codex exec`) can join the Codex split. Add each machine under **Settings → Codex on SSH hosts** by its SSH alias; each host can be switched off, tested, and given extra folders to search. Nothing is configured by default and no connection is made without a host.
+Codex usage spent on other machines (a VPS running agents or services that call `codex exec`) can join the Codex split. Add each machine under **Settings → Usage → Codex breakdown from SSH hosts** by its SSH alias; each host can be switched off, renamed, and given extra folders to search, and shows what was found there. Nothing is configured by default and no connection is made without a host.
 
 For each host, LLM Status runs a read-only Python 3 script over `ssh -o BatchMode=yes` (key-based login required; `sudo -n` is used when passwordless sudo is allowed, to read service folders). Only token totals with app and project names come back: no prompt, output or credential leaves the host. Usage is counted only for the ChatGPT account logged into your local Codex. The script looks under `/home`, `/root`, `/srv`, `/opt`, Docker volumes and your extra folders, and recognizes data by content:
 
