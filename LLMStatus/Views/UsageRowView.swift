@@ -163,9 +163,7 @@ struct UsageRowView: View {
     static func sessionLabel(_ window: SubscriptionUsage.Window, now: Date = Date()) -> String {
         let used = "\(window.label): \(Int(window.percent.rounded()))%"
         guard let resetsAt = window.resetsAt else { return window.percent == 0 ? "\(used) · starts on next use" : used }
-        guard resetsAt > now else { return used }
-        let minutes = Int((resetsAt.timeIntervalSince(now) / 60).rounded(.up))
-        let left = minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
+        guard let left = MenuBarContent.countdown(window, now: now), resetsAt > now else { return used }
         return "\(used) · resets in \(left)"
     }
 

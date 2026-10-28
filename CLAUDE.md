@@ -38,7 +38,7 @@ pkill LLMStatus
 - `AppSettings` (@Observable + @AppStorage) — persists user preferences
 - `NetworkMonitor` (NWPathMonitor) — tracks connectivity
 
-**Menu bar:** `StatusBarController` manages `NSStatusItem` with left-click (popover) and right-click (context menu). Icon updates via 1s Timer polling. The cloud logo (`Resources/MenuBarIcon.pdf`) is tinted with the provider's status color using `sourceAtop` blend.
+**Menu bar:** `StatusBarController` manages `NSStatusItem` with left-click (popover) and right-click (context menu). Icon updates via 1s Timer polling. Next to the cloud, Settings > General "Menu bar shows" picks a `MenuBarIndicator` (status only, busiest subscription, usage past a threshold, 5h window and countdown, weekly and 5h, a mini gauge per subscription, every subscription as text); `MenuBarContent` turns the usage sections into pieces, `StatusBarController.draw` puts them on the button. Options: hide the cloud with usage (it comes back on any provider issue), and a percent next to each mini gauge. The cloud logo (`Resources/MenuBarIcon.pdf`) is tinted with the provider's status color using `sourceAtop` blend.
 
 **Fetchers** — Six strategies, selected per provider via `FetcherType` enum:
 - `StatusFetcher` — Atlassian Statuspage JSON API (Anthropic, OpenAI, Cursor, DeepSeek, Moonshot)

@@ -33,6 +33,47 @@ struct SettingsView: View {
                         }
                     }
 
+                    // What the menu bar shows next to the cloud
+                    Picker("Menu bar shows", selection: Binding(
+                        get: { settings.menuBarIndicator },
+                        set: { settings.menuBarIndicator = $0 }
+                    )) {
+                        ForEach(MenuBarIndicator.allCases) { Text($0.title).tag($0) }
+                    }
+                    if settings.menuBarIndicator != .status {
+                        Toggle("Show the cloud with usage", isOn: Binding(
+                            get: { settings.menuBarShowsCloud },
+                            set: { settings.menuBarShowsCloud = $0 }
+                        ))
+                    }
+                    if settings.menuBarIndicator == .gauges {
+                        Toggle("Percent next to each gauge", isOn: Binding(
+                            get: { settings.menuBarGaugeNumbers },
+                            set: { settings.menuBarGaugeNumbers = $0 }
+                        ))
+                    }
+                    if settings.menuBarIndicator.needsAccount {
+                        Picker("Subscription", selection: Binding(
+                            get: { settings.menuBarAccountID },
+                            set: { settings.menuBarAccountID = $0 }
+                        )) {
+                            Text("First with a 5h window").tag(UUID?.none)
+                            ForEach(monitor.usage.groups) { group in
+                                ForEach(group.accounts.filter(\.enabled)) { account in
+                                    Text("\(group.name) · \(account.name)").tag(UUID?.some(account.id))
+                                }
+                            }
+                        }
+                    }
+                    if settings.menuBarIndicator == .alert {
+                        Picker("Show usage from", selection: Binding(
+                            get: { settings.menuBarThreshold },
+                            set: { settings.menuBarThreshold = $0 }
+                        )) {
+                            ForEach([50.0, 60, 70, 80, 90], id: \.self) { Text("\(Int($0))% weekly").tag($0) }
+                        }
+                    }
+
                     // Refresh interval
                     Picker("Refresh interval", selection: $settings.refreshInterval) {
                         ForEach(AppSettings.intervalOptions, id: \.value) { option in

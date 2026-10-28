@@ -129,25 +129,108 @@ final class StatusBarController: NSObject {
 
     // MARK: - Icon
 
-    private var lastIconStatus: ServiceStatus?
-    private var lastIconLabel: String?
+    /// Everything the item shows; redrawn only when it changes.
+    private var lastIconKey: String?
 
     private func updateIcon() {
         guard let button = statusItem.button else { return }
         let status = monitor.menuBarStatus(for: settings.menuBarProvider)
         let label = monitor.menuBarLabel(for: settings.menuBarProvider)
+        let accounts = MenuBarContent.accounts(monitor.usage.sections)
+        let mode = settings.menuBarIndicator
+        let pieces = MenuBarContent.pieces(mode, accounts: accounts, chosen: settings.menuBarAccountID,
+                                           threshold: settings.menuBarThreshold)
 
-        // Skip redraw if nothing changed
-        guard status != lastIconStatus || label != lastIconLabel else { return }
-        lastIconStatus = status
-        lastIconLabel = label
+        let key = "\(status)|\(label)|\(String(describing: pieces))|\(settings.menuBarShowsCloud)|\(settings.menuBarGaugeNumbers)"
+        guard key != lastIconKey else { return }
+        lastIconKey = key
 
-        button.image = tintedMenuBarIcon(status.nsColor)
-        button.title = " \(label)"
-        button.imagePosition = .imageLeading
+        Self.draw(on: button, cloud: Self.tintedMenuBarIcon(status.nsColor), label: label, pieces: pieces,
+                  // A provider issue brings the cloud back: its color is the only status signal.
+                  showCloud: settings.menuBarShowsCloud || status.severity >= 2, gaugeNumbers: settings.menuBarGaugeNumbers)
+        button.toolTip = pieces != nil && (mode == .busiest || mode == .alert)
+            ? MenuBarContent.busiestName(accounts).map { "Busiest: \($0)" } : "LLM Status"
     }
 
-    private func tintedMenuBarIcon(_ tint: NSColor) -> NSImage {
+    /// Puts the cloud, then the status label or the indicator's pieces, on the menu bar button.
+    /// `showCloud` false drops the cloud when usage is shown; the status label always keeps it.
+    static func draw(on button: NSButton, cloud: NSImage, label: String, pieces: [MenuBarPiece]?,
+                     showCloud: Bool = true, gaugeNumbers: Bool = false) {
+        guard let pieces else {
+            button.image = cloud
+            button.attributedTitle = NSAttributedString(string: " \(label)")
+            button.imagePosition = .imageLeading
+            return
+        }
+        var gauges: [Double] = []
+        let title = NSMutableAttributedString(string: showCloud ? " " : "")
+        let font = NSFont.menuBarFont(ofSize: 0)
+        for piece in pieces {
+            switch piece {
+            case .text(let text):
+                title.append(NSAttributedString(string: text, attributes: [.font: font]))
+            case .separator(let text):
+                title.append(NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor]))
+            case .percent(let text, let value):
+                title.append(NSAttributedString(string: text, attributes: percentAttributes(value, font: font)))
+            case .gauges(let values):
+                gauges = values
+            }
+        }
+        if !gauges.isEmpty {
+            button.image = withGauges(showCloud ? cloud : nil, gauges, numbers: gaugeNumbers, in: button)
+            button.attributedTitle = NSAttributedString(string: "")
+            button.imagePosition = .imageOnly
+        } else {
+            button.image = showCloud ? cloud : nil
+            button.attributedTitle = title
+            button.imagePosition = showCloud ? .imageLeading : .noImage
+        }
+    }
+
+    /// Under the warning level a number keeps the menu bar's own color, like the usage gauges.
+    private static func percentAttributes(_ value: Double, font: NSFont) -> [NSAttributedString.Key: Any] {
+        let color: NSColor = value >= 90 ? .systemRed : value >= 70 ? .systemOrange : .labelColor
+        return [.font: font, .foregroundColor: color]
+    }
+
+    /// The cloud (if any), then one thin vertical gauge per subscription, each optionally followed
+    /// by its percentage.
+    private static func withGauges(_ cloud: NSImage?, _ values: [Double], numbers: Bool, in button: NSButton) -> NSImage {
+        let barWidth: CGFloat = 4, barHeight: CGFloat = 14, height: CGFloat = 18
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        let labels = values.map { NSAttributedString(string: "\(Int($0.rounded()))", attributes: percentAttributes($0, font: font)) }
+        let gap: CGFloat = numbers ? 7 : 2
+        let lead = cloud.map { $0.size.width + 5 } ?? 0
+        let widths = values.indices.map { barWidth + (numbers ? 3 + ceil(labels[$0].size().width) : 0) }
+        let size = NSSize(width: lead + widths.reduce(0, +) + gap * CGFloat(values.count - 1), height: height)
+        let image = NSImage(size: size, flipped: false) { [weak button] rect in
+            // Label colors follow the menu bar (light or dark), read when the image is drawn.
+            let appearance = button?.effectiveAppearance ?? NSAppearance.currentDrawing()
+            appearance.performAsCurrentDrawingAppearance {
+            cloud?.draw(in: NSRect(x: 0, y: (rect.height - (cloud?.size.height ?? 0)) / 2, width: cloud?.size.width ?? 0, height: cloud?.size.height ?? 0))
+            var x = lead
+            for (index, value) in values.enumerated() {
+                let base = NSRect(x: x, y: (rect.height - barHeight) / 2, width: barWidth, height: barHeight)
+                NSColor.labelColor.withAlphaComponent(0.25).setFill()
+                NSBezierPath(roundedRect: base, xRadius: 1, yRadius: 1).fill()
+                let fill = max(1.5, barHeight * min(max(value, 0), 100) / 100)
+                (value >= 90 ? NSColor.systemRed : value >= 70 ? NSColor.systemOrange : NSColor.systemGreen).setFill()
+                NSBezierPath(roundedRect: NSRect(x: x, y: base.minY, width: barWidth, height: fill), xRadius: 1, yRadius: 1).fill()
+                if numbers {
+                    let label = labels[index]
+                    label.draw(at: NSPoint(x: x + barWidth + 3, y: (rect.height - label.size().height) / 2))
+                }
+                x += widths[index] + gap
+            }
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
+    static func tintedMenuBarIcon(_ tint: NSColor) -> NSImage {
         guard let url = Bundle.module.url(forResource: "MenuBarIcon", withExtension: "pdf"),
               let template = NSImage(contentsOf: url) else {
             return fallbackDot(tint)
@@ -167,7 +250,7 @@ final class StatusBarController: NSObject {
         return image
     }
 
-    private func fallbackDot(_ color: NSColor) -> NSImage {
+    private static func fallbackDot(_ color: NSColor) -> NSImage {
         let size = NSSize(width: 11, height: 11)
         let image = NSImage(size: size, flipped: false) { rect in
             color.setFill()

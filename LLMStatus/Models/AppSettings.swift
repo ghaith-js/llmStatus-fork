@@ -14,6 +14,47 @@ class AppSettings {
     @AppStorage("notificationsEnabled") var notificationsEnabled: Bool = true
     @ObservationIgnored
     @AppStorage("menuBarProvider") var menuBarProvider: String = "all"
+    /// What the menu bar shows next to the cloud (`MenuBarIndicator` raw value).
+    @ObservationIgnored
+    @AppStorage("menuBarIndicator") var menuBarIndicatorRaw: String = MenuBarIndicator.status.rawValue
+    /// Subscription read by the 5h modes (`UsageAccount.id`); empty picks the first with a 5h window.
+    @ObservationIgnored
+    @AppStorage("menuBarAccount") var menuBarAccount: String = ""
+    /// Weekly percent from which the alert mode shows the busiest subscription.
+    @ObservationIgnored
+    @AppStorage("menuBarAlertThreshold") var menuBarAlertThreshold: Double = 70
+    /// Off: the usage indicators show without the cloud (the status label always keeps it).
+    @ObservationIgnored
+    @AppStorage("menuBarCloud") var menuBarCloud: Bool = true
+    /// Mini gauges followed by their percentage.
+    @ObservationIgnored
+    @AppStorage("menuBarGaugePercent") var menuBarGaugePercent: Bool = false
+    private var menuBarTick = 0
+
+    var menuBarShowsCloud: Bool {
+        get { _ = menuBarTick; return menuBarCloud }
+        set { menuBarCloud = newValue; menuBarTick += 1 }
+    }
+
+    var menuBarGaugeNumbers: Bool {
+        get { _ = menuBarTick; return menuBarGaugePercent }
+        set { menuBarGaugePercent = newValue; menuBarTick += 1 }
+    }
+
+    var menuBarIndicator: MenuBarIndicator {
+        get { _ = menuBarTick; return MenuBarIndicator(rawValue: menuBarIndicatorRaw) ?? .status }
+        set { menuBarIndicatorRaw = newValue.rawValue; menuBarTick += 1 }
+    }
+
+    var menuBarAccountID: UUID? {
+        get { _ = menuBarTick; return UUID(uuidString: menuBarAccount) }
+        set { menuBarAccount = newValue?.uuidString ?? ""; menuBarTick += 1 }
+    }
+
+    var menuBarThreshold: Double {
+        get { _ = menuBarTick; return menuBarAlertThreshold }
+        set { menuBarAlertThreshold = newValue; menuBarTick += 1 }
+    }
     @ObservationIgnored
     @AppStorage("disabledProviders") var disabledProviders: String = ""
     /// Triggers SwiftUI re-render when disabled providers change
