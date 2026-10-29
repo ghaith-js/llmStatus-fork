@@ -49,10 +49,13 @@ struct MonitorCardView: View {
             } else {
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(problems.prefix(ProviderCardView.maxImpacted), id: \.self) { item in
-                        Text("\(item.name): \(item.value)")
-                            .foregroundStyle(item.status.color)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                        HStack(alignment: .firstTextBaseline, spacing: 3) {
+                            Image(systemName: item.status.sfSymbol)
+                                .foregroundStyle(item.status.color)
+                            Text("\(item.name): \(item.value)")
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                     }
                     if problems.count > ProviderCardView.maxImpacted {
                         Text("+\(problems.count - ProviderCardView.maxImpacted) more")
@@ -105,7 +108,8 @@ struct MonitorDetailView: View {
                             Text(item.name).lineLimit(1).truncationMode(.middle)
                             Spacer(minLength: 8)
                             Text(item.value)
-                                .foregroundStyle(item.status.severity >= 2 ? item.status.color : .secondary)
+                                .fontWeight(item.status.severity >= 2 ? .semibold : .regular)
+                                .foregroundStyle(item.status.severity >= 2 ? Color.primary : Color.secondary)
                                 .lineLimit(1)
                         }
                         .font(.caption)

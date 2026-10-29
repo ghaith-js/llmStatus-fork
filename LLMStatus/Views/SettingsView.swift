@@ -21,7 +21,7 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .controlSize(.small)
+            .controlSize(.mini)
             .padding(.horizontal, 12)
             .padding(.top, 8)
 

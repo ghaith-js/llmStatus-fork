@@ -52,9 +52,8 @@ struct MonitorsSettingsSection: View {
                         .disabled(!canAddServer)
                 }
                 if !trimmedAlias.isEmpty, !RemoteUsage.isValidHost(trimmedAlias) {
-                    Text("Use an alias from ~/.ssh/config or user@host.")
+                    Hint(text: "Use an alias from ~/.ssh/config or user@host.", status: .degraded)
                         .font(.caption)
-                        .foregroundStyle(.orange)
                 }
                 Picker("Check every", selection: $settings.serverCheckInterval) {
                     ForEach(AppSettings.serverIntervalOptions, id: \.value) { Text($0.label).tag($0.value) }
@@ -144,6 +143,31 @@ private struct RowControls: View {
     }
 }
 
+/// The status of a monitor with a problem; nil when fine, off or not checked.
+private func problem(_ result: CheckResult?, _ enabled: Bool) -> ServiceStatus? {
+    guard enabled, let status = result?.status, status.severity >= 2 else { return nil }
+    return status
+}
+
+/// Secondary text, or primary text after a colored symbol when `status` is set:
+/// orange or yellow text is hard to read on the popover's light material.
+private struct Hint: View {
+    let text: String
+    let status: ServiceStatus?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            if let status {
+                Image(systemName: status.sfSymbol)
+                    .foregroundStyle(status.color)
+            }
+            Text(text)
+                .foregroundStyle(status == nil ? Color.secondary : Color.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
 private func statusLine(_ result: CheckResult?, enabled: Bool, checking: Bool) -> String {
     guard enabled else { return "Off" }
     if checking { return "Checking…" }
@@ -186,8 +210,8 @@ private struct WebsiteRow: View {
                 TextField("Keyword", text: $keyword, prompt: Text("Text the page must contain (optional)"))
                 TextField("Slow after (ms)", text: $slow, prompt: Text("3000"))
                 HStack {
-                    Text(WebsiteMonitor.parse(url) == nil ? "Enter an http(s) URL." : "Return to save, Esc to cancel.")
-                        .foregroundStyle(WebsiteMonitor.parse(url) == nil ? Color.orange : Color.secondary)
+                    Hint(text: WebsiteMonitor.parse(url) == nil ? "Enter an http(s) URL." : "Return to save, Esc to cancel.",
+                         status: WebsiteMonitor.parse(url) == nil ? .degraded : nil)
                     Spacer()
                     Button("Cancel") { editing = false }
                     Button("Save", action: commit)
@@ -196,10 +220,8 @@ private struct WebsiteRow: View {
                 .font(.caption2)
                 .buttonStyle(.borderless)
             } else {
-                Text(statusLine(result, enabled: site.enabled, checking: checking))
+                Hint(text: statusLine(result, enabled: site.enabled, checking: checking), status: problem(result, site.enabled))
                     .font(.caption2)
-                    .foregroundStyle((result?.status.severity ?? 0) >= 2 && site.enabled ? Color.orange : Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .textFieldStyle(.roundedBorder)
@@ -271,8 +293,8 @@ private struct ServerRow: View {
                 Stepper("Disk warning at \(warn)%", value: $warn, in: 50...99)
                 Stepper("Disk critical at \(critical)%", value: $critical, in: (warn + 1)...100)
                 HStack {
-                    Text(isAvailable(trimmedAlias) ? "Return to save, Esc to cancel." : "Use a unique alias from ~/.ssh/config or user@host.")
-                        .foregroundStyle(isAvailable(trimmedAlias) ? Color.secondary : Color.orange)
+                    Hint(text: isAvailable(trimmedAlias) ? "Return to save, Esc to cancel." : "Use a unique alias from ~/.ssh/config or user@host.",
+                         status: isAvailable(trimmedAlias) ? nil : .degraded)
                     Spacer()
                     Button("Cancel") { editing = false }
                     Button("Save", action: commit)
@@ -281,10 +303,8 @@ private struct ServerRow: View {
                 .font(.caption2)
                 .buttonStyle(.borderless)
             } else {
-                Text(statusLine(result, enabled: server.enabled, checking: checking))
+                Hint(text: statusLine(result, enabled: server.enabled, checking: checking), status: problem(result, server.enabled))
                     .font(.caption2)
-                    .foregroundStyle((result?.status.severity ?? 0) >= 2 && server.enabled ? Color.orange : Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 let watched = server.services + server.containers.map { "🐳 " + $0 } + server.ports.map { ":\($0)" }
                 if !watched.isEmpty {
                     Text(watched.joined(separator: ", "))
