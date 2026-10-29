@@ -159,7 +159,8 @@ struct UsageRowView: View {
             }
             if let resetError {
                 Label(resetError, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .font(.caption2)
