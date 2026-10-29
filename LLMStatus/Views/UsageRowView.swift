@@ -6,12 +6,20 @@ struct UsageRowView: View {
     /// Offered on an expired token this Mac can renew (local Claude login).
     var renew: (() -> Void)?
     var renewing = false
+    /// Offered when this Mac's Codex login has free resets: uses the one chosen, after confirmation.
+    var useReset: ((CodexResets.Credit) -> Void)?
+    var resetting = false
+    var resetError: String?
     @State private var isExpanded: Bool
 
-    init(usage: SubscriptionUsage, startExpanded: Bool = false, renew: (() -> Void)? = nil, renewing: Bool = false) {
+    init(usage: SubscriptionUsage, startExpanded: Bool = false, renew: (() -> Void)? = nil, renewing: Bool = false,
+         useReset: ((CodexResets.Credit) -> Void)? = nil, resetting: Bool = false, resetError: String? = nil) {
         self.usage = usage
         self.renew = renew
         self.renewing = renewing
+        self.useReset = useReset
+        self.resetting = resetting
+        self.resetError = resetError
         _isExpanded = State(initialValue: startExpanded)
     }
 
@@ -111,10 +119,73 @@ struct UsageRowView: View {
                 .help("Sends one short request with Claude Code (Haiku) so it renews its login.")
             }
 
+            if let useReset, let credits = usage.resetCredits, !credits.isEmpty || resetError != nil {
+                resetLine(credits, use: useReset)
+            }
+
             if isExpanded, let weekly = usage.weekly {
                 breakdown(weeklyPercent: weekly.percent)
             }
         }
+    }
+
+    private func resetLine(_ credits: [CodexResets.Credit], use: @escaping (CodexResets.Credit) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                if !credits.isEmpty {
+                    Menu {
+                        ForEach(credits) { credit in
+                            Button("\(credit.title) · \(Self.expiryLabel(credit.expiresAt))") {
+                                if Self.confirmReset(credit, usage: usage) { use(credit) }
+                            }
+                        }
+                    } label: {
+                        Text(credits.count == 1 ? "1 reset available" : "\(credits.count) resets available")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .disabled(resetting)
+                    .help("Use a free reset to restore your Codex 5h and weekly limits")
+                }
+                if resetting {
+                    Text("Resetting…").foregroundStyle(.secondary)
+                    ProgressView().controlSize(.mini)
+                }
+                Spacer()
+                if let soonest = credits.first?.expiresAt, soonest.timeIntervalSinceNow < 2 * 24 * 3600 {
+                    Text("Next expires \(Self.expiryLabel(soonest).replacingOccurrences(of: "expires ", with: ""))")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let resetError {
+                Label(resetError, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.primary)
+            }
+        }
+        .font(.caption2)
+    }
+
+    static func expiryLabel(_ date: Date?) -> String {
+        guard let date else { return "no expiry" }
+        return "expires \(resetLabel(date))"
+    }
+
+    /// A reset cannot be undone: always ask, and say how much of it would go unused.
+    static func confirmReset(_ credit: CodexResets.Credit, usage: SubscriptionUsage) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Use a Codex reset?"
+        var text = "This restores your Codex 5-hour and weekly limits now. It cannot be undone."
+        if let weekly = usage.weekly {
+            text += "\n\nWeekly usage is \(Int(weekly.percent.rounded()))%"
+            if let session = usage.session { text += ", 5h usage is \(Int(session.percent.rounded()))%" }
+            text += ": that is what the reset gives back."
+        }
+        text += "\n\n\(credit.title), \(expiryLabel(credit.expiresAt))."
+        alert.informativeText = text
+        alert.addButton(withTitle: "Use reset")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     /// Apps (or SSH hosts, then their apps), then projects, each with its estimated part of the weekly percentage.

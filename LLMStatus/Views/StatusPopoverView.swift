@@ -130,7 +130,10 @@ struct StatusPopoverView: View {
                                 if sections.count == 1 || !isCollapsed(section.group) {
                                     ForEach(section.usages) { usage in
                                         UsageRowView(usage: usage, renew: renewAction(usage, in: section.group),
-                                                     renewing: usage.accountID.map(monitor.usage.renewing.contains) ?? false)
+                                                     renewing: usage.accountID.map(monitor.usage.renewing.contains) ?? false,
+                                                     useReset: resetAction(usage, in: section.group),
+                                                     resetting: usage.accountID.map(monitor.usage.resetting.contains) ?? false,
+                                                     resetError: usage.accountID.flatMap { monitor.usage.resetErrors[$0] })
                                     }
                                 }
                             }
@@ -307,6 +310,14 @@ struct StatusPopoverView: View {
               let account = group.accounts.first(where: { $0.id == id }),
               account.isLocal, account.kind == .claude else { return nil }
         return { Task { await monitor.usage.renew(id) } }
+    }
+
+    /// Only this Mac's Codex login: its token is the one that can use the account's resets.
+    private func resetAction(_ usage: SubscriptionUsage, in group: UsageGroup) -> ((CodexResets.Credit) -> Void)? {
+        guard let id = usage.accountID,
+              let account = group.accounts.first(where: { $0.id == id }),
+              account.isLocal, account.kind == .codex else { return nil }
+        return { credit in Task { await monitor.usage.useReset(credit.id, for: id) } }
     }
 
     private func usageGroupHeader(_ group: UsageGroup) -> some View {

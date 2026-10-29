@@ -71,6 +71,8 @@ struct SubscriptionUsage: Identifiable, Equatable {
     /// `UsageAccount.source` the row was read from: a row fetched before the account was
     /// pointed elsewhere (another host, folder or kind) is never shown under it.
     var source: String?
+    /// Free Codex resets available to this Mac's login (`CodexResets`); nil when unknown.
+    var resetCredits: [CodexResets.Credit]?
 
     var id: String { accountID?.uuidString ?? kind.rawValue }
     var displayName: String { title ?? kind.name }
@@ -152,7 +154,7 @@ enum UsageFetcher {
 
     // MARK: - Codex
 
-    private struct CodexAuth: Decodable {
+    struct CodexAuth: Decodable {
         struct Tokens: Decodable {
             let access_token: String
             let account_id: String?
@@ -174,7 +176,7 @@ enum UsageFetcher {
         let rate_limit: RateLimit?
     }
 
-    private static func codexTokens() -> CodexAuth.Tokens? {
+    static func codexTokens() -> CodexAuth.Tokens? {
         let home = ProcessInfo.processInfo.environment["CODEX_HOME"].map { URL(fileURLWithPath: $0) }
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex")
         guard let raw = try? Data(contentsOf: home.appendingPathComponent("auth.json")) else { return nil }
@@ -195,8 +197,11 @@ enum UsageFetcher {
         if let account = tokens.account_id {
             request.setValue(account, forHTTPHeaderField: "ChatGPT-Account-Id")
         }
+        async let credits = CodexResets.fetch()
         guard let data = await send(request, usage: &usage, relogin: "run codex") else { return usage }
-        return parseCodex(data, into: usage)
+        var parsed = parseCodex(data, into: usage)
+        parsed.resetCredits = await credits
+        return parsed
     }
 
     static func parseCodex(_ data: Data, into base: SubscriptionUsage = SubscriptionUsage(kind: .codex)) -> SubscriptionUsage {
@@ -390,6 +395,7 @@ class UsageMonitor {
                 if let previous = usages.first(where: { $0.id == result.id && $0.source == result.source }) {
                     result.breakdown = previous.breakdown
                     result.breakdownErrors = previous.breakdownErrors
+                    result.resetCredits = result.resetCredits ?? previous.resetCredits
                     // An expired token or a network hiccup keeps the last limits read, dated.
                     if result.weekly == nil, previous.weekly != nil {
                         result.weekly = previous.weekly
@@ -426,6 +432,22 @@ class UsageMonitor {
                 usages[index].breakdownErrors = remote.compactMap(\.error)
             }
         }
+    }
+
+    /// Accounts using a Codex reset right now, and the last reset error per account.
+    var resetting: Set<UUID> = []
+    var resetErrors: [UUID: String] = [:]
+
+    /// Uses one free Codex reset of this Mac's login, then reads its limits again.
+    @MainActor
+    func useReset(_ creditID: String, for accountID: UUID) async {
+        guard !resetting.contains(accountID),
+              let account = enabledAccounts.first(where: { $0.id == accountID }),
+              account.isLocal, account.kind == .codex else { return }
+        resetting.insert(accountID)
+        defer { resetting.remove(accountID) }
+        resetErrors[accountID] = await CodexResets.consume(creditID)
+        await fetch([account])
     }
 
     /// Accounts whose Claude Code login is being renewed (Renew button).
