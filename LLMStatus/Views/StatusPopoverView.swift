@@ -118,7 +118,8 @@ struct StatusPopoverView: View {
                                 }
                                 if sections.count == 1 || !isCollapsed(section.group) {
                                     ForEach(section.usages) { usage in
-                                        UsageRowView(usage: usage)
+                                        UsageRowView(usage: usage, renew: renewAction(usage, in: section.group),
+                                                     renewing: usage.accountID.map(monitor.usage.renewing.contains) ?? false)
                                     }
                                 }
                             }
@@ -210,6 +211,14 @@ struct StatusPopoverView: View {
 
     private func isCollapsed(_ group: UsageGroup) -> Bool {
         collapsedUsageGroups.split(separator: ",").contains { $0 == group.id.uuidString }
+    }
+
+    /// Only this Mac's Claude login can be renewed here: the CLI that owns it runs on this Mac.
+    private func renewAction(_ usage: SubscriptionUsage, in group: UsageGroup) -> (() -> Void)? {
+        guard let id = usage.accountID,
+              let account = group.accounts.first(where: { $0.id == id }),
+              account.isLocal, account.kind == .claude else { return nil }
+        return { Task { await monitor.usage.renew(id) } }
     }
 
     private func usageGroupHeader(_ group: UsageGroup) -> some View {

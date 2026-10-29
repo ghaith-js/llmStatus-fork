@@ -500,3 +500,10 @@ struct UsageAccountsTests {
         #expect(UsageBreakdown.codexApp("codex_exec") == "Codex CLI" && UsageBreakdown.codexApp("CodexDesktop") == "ChatGPT app")
     }
 }
+
+@Test func claudeRenewalLeavesNoSessionAndUsesTheSmallestModel() {
+    #expect(ClaudeRenewal.arguments.contains("--no-session-persistence"))
+    #expect(ClaudeRenewal.arguments.contains("haiku"))
+    #expect(ClaudeRenewal.arguments.first == "-p")
+    #expect(ClaudeRenewal.candidates(home: "/Users/x").contains("/Users/x/.local/bin/claude"))
+}

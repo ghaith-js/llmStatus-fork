@@ -3,10 +3,15 @@ import SwiftUI
 /// Weekly limit gauge for one subscription, with the shorter window as a secondary figure.
 struct UsageRowView: View {
     let usage: SubscriptionUsage
+    /// Offered on an expired token this Mac can renew (local Claude login).
+    var renew: (() -> Void)?
+    var renewing = false
     @State private var isExpanded: Bool
 
-    init(usage: SubscriptionUsage, startExpanded: Bool = false) {
+    init(usage: SubscriptionUsage, startExpanded: Bool = false, renew: (() -> Void)? = nil, renewing: Bool = false) {
         self.usage = usage
+        self.renew = renew
+        self.renewing = renewing
         _isExpanded = State(initialValue: startExpanded)
     }
 
@@ -92,6 +97,18 @@ struct UsageRowView: View {
                     .font(.caption2)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if usage.tokenExpired, let renew {
+                HStack(spacing: 6) {
+                    Button(renewing ? "Renewing…" : "Renew with Claude Code", action: renew)
+                        .controlSize(.small)
+                        .disabled(renewing)
+                    if renewing {
+                        ProgressView().controlSize(.mini)
+                    }
+                }
+                .help("Sends one short request with Claude Code (Haiku) so it renews its login.")
             }
 
             if isExpanded, let weekly = usage.weekly {

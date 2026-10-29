@@ -428,6 +428,26 @@ class UsageMonitor {
         }
     }
 
+    /// Accounts whose Claude Code login is being renewed (Renew button).
+    var renewing: Set<UUID> = []
+
+    /// Has the CLI renew this Mac's Claude login, then reads its limits again.
+    @MainActor
+    func renew(_ accountID: UUID) async {
+        guard !renewing.contains(accountID),
+              let account = enabledAccounts.first(where: { $0.id == accountID }),
+              account.isLocal, account.kind == .claude else { return }
+        renewing.insert(accountID)
+        defer { renewing.remove(accountID) }
+        if let error = await ClaudeRenewal.renew(),
+           let index = usages.firstIndex(where: { $0.accountID == accountID }) {
+            usages[index].error = error
+            usages[index].checkedAt = Date()
+            return
+        }
+        await fetch([account])
+    }
+
     /// Reads one host now (Settings "Test"), updating its status only.
     @MainActor
     func check(_ host: RemoteUsage.Host) async {
