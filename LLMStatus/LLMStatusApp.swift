@@ -50,6 +50,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor.usage.remoteHosts = settings.remoteHosts
         monitor.usage.startPolling()
         network.start()
+        monitor.infra.websites = settings.websites
+        monitor.infra.servers = settings.servers
+        monitor.infra.websiteInterval = settings.websiteInterval
+        monitor.infra.serverInterval = settings.serverInterval
+        monitor.infra.notificationsEnabled = settings.notificationsEnabled
+        monitor.infra.isOnline = { network.isConnected }
+        monitor.infra.startPolling()
 
         statusBarController = StatusBarController(
             monitor: monitor,

@@ -1,0 +1,325 @@
+import SwiftUI
+
+/// Settings > Monitors: websites checked over HTTP(S) and servers checked over SSH.
+/// Adding, editing or switching one saves right away and checks it.
+struct MonitorsSettingsSection: View {
+    @Bindable var settings: AppSettings
+    var infra: InfraMonitor
+    @State private var websites: [WebsiteMonitor] = []
+    @State private var servers: [ServerMonitor] = []
+    @State private var newURL = ""
+    @State private var newAlias = ""
+
+    private var trimmedURL: String { newURL.trimmingCharacters(in: .whitespaces) }
+    private var trimmedAlias: String { newAlias.trimmingCharacters(in: .whitespaces) }
+
+    var body: some View {
+        Group {
+            Section("Websites") {
+                ForEach($websites) { $site in
+                    WebsiteRow(site: $site, result: infra.results[site.id], checking: infra.checking.contains(site.id),
+                               onRemove: { websites.removeAll { $0.id == site.id } },
+                               onCommit: { check(site.id) })
+                }
+                HStack {
+                    TextField("Add website", text: $newURL, prompt: Text("https://example.com"))
+                        .labelsHidden()
+                        .onSubmit(addWebsite)
+                    Button("Add", action: addWebsite)
+                        .disabled(WebsiteMonitor.parse(trimmedURL) == nil)
+                }
+                Picker("Check every", selection: $settings.websiteCheckInterval) {
+                    ForEach(AppSettings.intervalOptions, id: \.value) { Text($0.label).tag($0.value) }
+                }
+                Text("HTTP status, response time, TLS certificate expiry and, when set, a keyword the page must contain. Click a site to edit it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("Servers") {
+                ForEach($servers) { $server in
+                    ServerRow(server: $server, result: infra.results[server.id], checking: infra.checking.contains(server.id),
+                              isAvailable: { alias in RemoteUsage.isValidHost(alias) && !servers.contains { $0.alias == alias && $0.id != server.id } },
+                              onRemove: { servers.removeAll { $0.id == server.id } },
+                              onCommit: { check(server.id) })
+                }
+                HStack {
+                    TextField("Add server", text: $newAlias, prompt: Text("SSH alias, e.g. my-vps"))
+                        .labelsHidden()
+                        .onSubmit(addServer)
+                    Button("Add", action: addServer)
+                        .disabled(!canAddServer)
+                }
+                if !trimmedAlias.isEmpty, !RemoteUsage.isValidHost(trimmedAlias) {
+                    Text("Use an alias from ~/.ssh/config or user@host.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Picker("Check every", selection: $settings.serverCheckInterval) {
+                    ForEach(AppSettings.serverIntervalOptions, id: \.value) { Text($0.label).tag($0.value) }
+                }
+                Text("Over SSH with your key (no password prompt): SSH answer time, disk space and inodes, memory, load and failed systemd units, plus the services, Docker containers and ports you list. Click a server to list them and set disk thresholds. Read-only; uses sudo -n when allowed (needed for Docker unless your user is in the docker group).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .onAppear {
+            websites = settings.websites
+            servers = settings.servers
+        }
+        .onChange(of: websites) { _, websites in
+            settings.websites = websites
+            infra.websites = websites
+            infra.prune()
+        }
+        .onChange(of: servers) { _, servers in
+            settings.servers = servers
+            infra.servers = servers
+            infra.prune()
+        }
+        .onChange(of: settings.websiteCheckInterval) { _, interval in infra.websiteInterval = interval }
+        .onChange(of: settings.serverCheckInterval) { _, interval in infra.serverInterval = interval }
+    }
+
+    private var canAddServer: Bool {
+        RemoteUsage.isValidHost(trimmedAlias) && !servers.contains { $0.alias == trimmedAlias }
+    }
+
+    private func addWebsite() {
+        guard let url = WebsiteMonitor.parse(trimmedURL) else { return }
+        let site = WebsiteMonitor(url: url.absoluteString)
+        websites.append(site)
+        newURL = ""
+        check(site.id)
+    }
+
+    private func addServer() {
+        guard canAddServer else { return }
+        let server = ServerMonitor(alias: trimmedAlias)
+        servers.append(server)
+        newAlias = ""
+        check(server.id)
+    }
+
+    /// The list reaches the monitor through onChange first: check on the next turn.
+    private func check(_ id: UUID) {
+        Task { @MainActor in
+            await Task.yield()
+            await infra.check(id: id)
+        }
+    }
+}
+
+private struct StatusDot: View {
+    let result: CheckResult?
+    let enabled: Bool
+
+    var body: some View {
+        Circle()
+            .fill(enabled ? (result?.status ?? .unknown).color : .gray)
+            .frame(width: 7, height: 7)
+    }
+}
+
+private struct RowControls: View {
+    let checking: Bool
+    @Binding var enabled: Bool
+    let onToggle: () -> Void
+    let onRemove: () -> Void
+
+    var body: some View {
+        if checking {
+            ProgressView().controlSize(.mini)
+        }
+        Toggle("Enabled", isOn: Binding(get: { enabled }, set: { enabled = $0; onToggle() }))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+        Button(action: onRemove) { Image(systemName: "trash") }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .help("Remove")
+    }
+}
+
+private func statusLine(_ result: CheckResult?, enabled: Bool, checking: Bool) -> String {
+    guard enabled else { return "Off" }
+    if checking { return "Checking…" }
+    guard let result else { return "Not checked yet" }
+    let time = result.checkedAt.formatted(date: .omitted, time: .shortened)
+    let problems = result.problems.prefix(2).map { "\($0.name): \($0.value)" }
+    return (problems.isEmpty ? result.summary : problems.joined(separator: " · ")) + " · \(time)"
+}
+
+private struct WebsiteRow: View {
+    @Binding var site: WebsiteMonitor
+    let result: CheckResult?
+    let checking: Bool
+    let onRemove: () -> Void
+    let onCommit: () -> Void
+    @State private var editing = false
+    @State private var name = ""
+    @State private var url = ""
+    @State private var keyword = ""
+    @State private var slow = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                StatusDot(result: result, enabled: site.enabled)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(site.name).lineLimit(1).truncationMode(.middle)
+                    Text(site.url).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture(perform: startEditing)
+                .help("Click to edit")
+                Spacer()
+                RowControls(checking: checking, enabled: $site.enabled, onToggle: onCommit, onRemove: onRemove)
+            }
+
+            if editing {
+                TextField("Name", text: $name, prompt: Text("Name"))
+                TextField("URL", text: $url, prompt: Text("https://example.com"))
+                TextField("Keyword", text: $keyword, prompt: Text("Text the page must contain (optional)"))
+                TextField("Slow after (ms)", text: $slow, prompt: Text("3000"))
+                HStack {
+                    Text(WebsiteMonitor.parse(url) == nil ? "Enter an http(s) URL." : "Return to save, Esc to cancel.")
+                        .foregroundStyle(WebsiteMonitor.parse(url) == nil ? Color.orange : Color.secondary)
+                    Spacer()
+                    Button("Cancel") { editing = false }
+                    Button("Save", action: commit)
+                        .disabled(WebsiteMonitor.parse(url) == nil)
+                }
+                .font(.caption2)
+                .buttonStyle(.borderless)
+            } else {
+                Text(statusLine(result, enabled: site.enabled, checking: checking))
+                    .font(.caption2)
+                    .foregroundStyle((result?.status.severity ?? 0) >= 2 && site.enabled ? Color.orange : Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .textFieldStyle(.roundedBorder)
+        .onSubmit(commit)
+        .onExitCommand { editing = false }
+    }
+
+    private func startEditing() {
+        name = site.name
+        url = site.url
+        keyword = site.keyword
+        slow = String(site.slowMs)
+        editing = true
+    }
+
+    private func commit() {
+        guard editing, let parsed = WebsiteMonitor.parse(url) else { return }
+        site.url = parsed.absoluteString
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        site.name = trimmedName.isEmpty ? (parsed.host ?? site.url) : trimmedName
+        site.keyword = keyword.trimmingCharacters(in: .whitespaces)
+        if let ms = Int(slow.trimmingCharacters(in: .whitespaces)), ms > 0 { site.slowMs = ms }
+        editing = false
+        onCommit()
+    }
+}
+
+private struct ServerRow: View {
+    @Binding var server: ServerMonitor
+    let result: CheckResult?
+    let checking: Bool
+    let isAvailable: (String) -> Bool
+    let onRemove: () -> Void
+    let onCommit: () -> Void
+    @State private var editing = false
+    @State private var alias = ""
+    @State private var name = ""
+    @State private var services = ""
+    @State private var containers = ""
+    @State private var ports = ""
+    @State private var warn = 80
+    @State private var critical = 90
+
+    private var trimmedAlias: String { alias.trimmingCharacters(in: .whitespaces) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                StatusDot(result: result, enabled: server.enabled)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(server.displayName).lineLimit(1).truncationMode(.middle)
+                    if !server.name.isEmpty {
+                        Text(server.alias).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture(perform: startEditing)
+                .help("Click to edit")
+                Spacer()
+                RowControls(checking: checking, enabled: $server.enabled, onToggle: onCommit, onRemove: onRemove)
+            }
+
+            if editing {
+                TextField("SSH alias", text: $alias, prompt: Text("SSH alias or user@host"))
+                TextField("Name", text: $name, prompt: Text("Display name (optional)"))
+                TextField("Services", text: $services, prompt: Text("systemd services: nginx, mysql"))
+                TextField("Containers", text: $containers, prompt: Text("Docker containers (optional)"))
+                TextField("Ports", text: $ports, prompt: Text("Ports that must listen: 80, 443"))
+                Stepper("Disk warning at \(warn)%", value: $warn, in: 50...99)
+                Stepper("Disk critical at \(critical)%", value: $critical, in: (warn + 1)...100)
+                HStack {
+                    Text(isAvailable(trimmedAlias) ? "Return to save, Esc to cancel." : "Use a unique alias from ~/.ssh/config or user@host.")
+                        .foregroundStyle(isAvailable(trimmedAlias) ? Color.secondary : Color.orange)
+                    Spacer()
+                    Button("Cancel") { editing = false }
+                    Button("Save", action: commit)
+                        .disabled(!isAvailable(trimmedAlias))
+                }
+                .font(.caption2)
+                .buttonStyle(.borderless)
+            } else {
+                Text(statusLine(result, enabled: server.enabled, checking: checking))
+                    .font(.caption2)
+                    .foregroundStyle((result?.status.severity ?? 0) >= 2 && server.enabled ? Color.orange : Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                let watched = server.services + server.containers.map { "🐳 " + $0 } + server.ports.map { ":\($0)" }
+                if !watched.isEmpty {
+                    Text(watched.joined(separator: ", "))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(2)
+                }
+            }
+        }
+        .textFieldStyle(.roundedBorder)
+        .onSubmit(commit)
+        .onExitCommand { editing = false }
+    }
+
+    private func startEditing() {
+        alias = server.alias
+        name = server.name
+        services = server.services.joined(separator: ", ")
+        containers = server.containers.joined(separator: ", ")
+        ports = server.ports.map(String.init).joined(separator: ", ")
+        warn = server.diskWarn
+        critical = max(server.diskCritical, server.diskWarn + 1)
+        editing = true
+    }
+
+    private func commit() {
+        guard editing, isAvailable(trimmedAlias) else { return }
+        server.alias = trimmedAlias
+        server.name = name.trimmingCharacters(in: .whitespaces)
+        server.services = ServerMonitor.names(from: services)
+        server.containers = ServerMonitor.names(from: containers)
+        server.ports = ServerMonitor.ports(from: ports)
+        server.diskWarn = warn
+        server.diskCritical = max(critical, warn + 1)
+        editing = false
+        onCommit()
+    }
+}

@@ -43,6 +43,7 @@ final class StatusBarController: NSObject {
             }
             .onChange(of: s.notificationsEnabled) { _, enabled in
                 m.notificationsEnabled = enabled
+                m.infra.notificationsEnabled = enabled
             }
             .onChange(of: s.menuBarProvider) { _, providerID in
                 m.notifyProviderID = providerID
