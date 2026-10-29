@@ -9,6 +9,8 @@ struct StatusPopoverView: View {
     @AppStorage("collapsedUsageGroups") private var collapsedUsageGroups = ""
     /// Provider whose components are shown in place of the gallery.
     @State private var selectedProviderID: String?
+    /// Website or server whose checks are shown in place of the gallery.
+    @State private var selectedMonitorID: UUID?
 
     private var selectedProvider: ServiceProvider? {
         monitor.enabledProviders.first { $0.id == selectedProviderID }
@@ -49,6 +51,15 @@ struct StatusPopoverView: View {
                 // Forms scroll on their own: give them the room the screen allows.
                 SettingsView(settings: settings, monitor: monitor)
                     .frame(height: min(640, FittingScrollView<EmptyView>.maxHeight))
+            } else if let id = selectedMonitorID {
+                detailHeader("Monitors") { selectedMonitorID = nil }
+
+                Divider()
+
+                FittingScrollView {
+                    monitorDetail(id)
+                        .padding(12)
+                }
             } else if let provider = selectedProvider {
                 HStack {
                     Button {
@@ -130,6 +141,8 @@ struct StatusPopoverView: View {
                         Divider()
                     }
 
+                    monitorSections
+
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Status")
                             .font(.caption.weight(.semibold))
@@ -205,8 +218,83 @@ struct StatusPopoverView: View {
         .focusEffectDisabled()
         .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
             selectedProviderID = nil
+            selectedMonitorID = nil
             showingSettings = true
         }
+    }
+
+    // MARK: - Websites and servers
+
+    @ViewBuilder
+    private var monitorSections: some View {
+        let infra = monitor.infra
+        let websites = infra.ordered(infra.enabledWebsites)
+        let servers = infra.ordered(infra.enabledServers)
+        if !websites.isEmpty || !servers.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                if !websites.isEmpty {
+                    monitorGrid("Websites") {
+                        ForEach(websites) { site in
+                            MonitorCardView(name: site.name, result: infra.results[site.id], checking: infra.checking.contains(site.id))
+                                .onTapGesture { selectedMonitorID = site.id }
+                        }
+                    }
+                }
+                if !servers.isEmpty {
+                    monitorGrid("Servers") {
+                        ForEach(servers) { server in
+                            MonitorCardView(name: server.displayName, result: infra.results[server.id],
+                                            checking: infra.checking.contains(server.id))
+                                .onTapGesture { selectedMonitorID = server.id }
+                        }
+                    }
+                }
+            }
+            .padding(12)
+
+            Divider()
+        }
+    }
+
+    private func monitorGrid<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: galleryColumns, spacing: 8, content: content)
+        }
+    }
+
+    @ViewBuilder
+    private func monitorDetail(_ id: UUID) -> some View {
+        let infra = monitor.infra
+        let recheck = { Task { await infra.check(id: id) } }
+        if let site = infra.websites.first(where: { $0.id == id }) {
+            MonitorDetailView(name: site.name, subtitle: site.url, result: infra.results[id], link: site.parsedURL,
+                              checking: infra.checking.contains(id), recheck: { _ = recheck() })
+        } else if let server = infra.servers.first(where: { $0.id == id }) {
+            MonitorDetailView(name: server.displayName, subtitle: "ssh \(server.alias)", result: infra.results[id], link: nil,
+                              checking: infra.checking.contains(id), recheck: { _ = recheck() })
+        }
+    }
+
+    private func detailHeader(_ title: String, back: @escaping () -> Void) -> some View {
+        HStack {
+            Button(action: back) {
+                Image(systemName: "chevron.left")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+
+            Text(title)
+                .font(.headline)
+
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
     }
 
     private func isCollapsed(_ group: UsageGroup) -> Bool {

@@ -6,6 +6,8 @@ class StatusMonitor {
     let notificationManager = NotificationManager()
     /// Weekly limits of the Claude / Codex subscriptions (independent of status pages)
     let usage = UsageMonitor()
+    /// Websites and servers checked by this app (Settings > Monitors)
+    let infra = InfraMonitor()
     var notificationsEnabled = true
     var notifyProviderID = "all"
     /// True during manual force-refresh (disables Refresh button, shows "Refreshing...")
@@ -50,11 +52,13 @@ class StatusMonitor {
     }
 
     /// Status for the menu bar icon — either a specific provider or aggregated.
+    /// A website or server problem shows whichever provider is selected.
     func menuBarStatus(for providerID: String) -> ServiceStatus {
-        if providerID == "all" {
-            return aggregatedStatus
-        }
-        return providers.first { $0.id == providerID }?.currentStatus ?? .unknown
+        let status = providerID == "all"
+            ? aggregatedStatus
+            : providers.first { $0.id == providerID }?.currentStatus ?? .unknown
+        guard let issue = infra.issueStatus, issue.severity > status.severity else { return status }
+        return issue
     }
 
     /// Short label for the menu bar — provider short name or "LLM".
@@ -121,8 +125,10 @@ class StatusMonitor {
             providers[index].statusDetail = "Refreshing..."
         }
         async let usageRefresh: Void = usage.refresh(force: true)
+        async let infraRefresh: Void = infra.refreshAll()
         await fetchAllStatuses()
         await usageRefresh
+        await infraRefresh
         isRefreshing = false
     }
 

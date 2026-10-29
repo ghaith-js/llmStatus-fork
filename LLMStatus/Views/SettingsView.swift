@@ -10,6 +10,7 @@ struct SettingsView: View {
         case general = "General"
         case providers = "Providers"
         case usage = "Usage"
+        case monitors = "Monitors"
         case menuBar = "Menu bar"
     }
 
@@ -20,7 +21,7 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .controlSize(.small)
+            .controlSize(.mini)
             .padding(.horizontal, 12)
             .padding(.top, 8)
 
@@ -113,6 +114,8 @@ struct SettingsView: View {
                             .pickerStyle(.menu)
                         }
                     }
+                case .monitors:
+                    MonitorsSettingsSection(settings: settings, infra: monitor.infra)
                 case .menuBar:
                     MenuBarSettingsSection(settings: settings, monitor: monitor,
                                            providers: orderedProviders.filter { settings.isProviderEnabled($0.id) })
